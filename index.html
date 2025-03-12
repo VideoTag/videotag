@@ -1,0 +1,1968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Video Reactions & Comments Application" />
+  <title>Video Reactions & Comments</title>
+  <style>
+    :root {
+      --primary-color: #007bff;
+      --primary-hover: #0056b3;
+      --success-color: #28a745;
+      --success-hover: #1e7e34;
+      --error-color: #dc3545;
+      --background-color: #f0f2f5;
+      --text-color: #333;
+      --border-color: #ccc;
+      --shadow-color: rgba(0, 0, 0, 0.1);
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      line-height: 1.6;
+      background: var(--background-color);
+      color: var(--text-color);
+      padding: 20px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+      font-size: 2.5rem;
+      color: var(--text-color);
+    }
+    /* Input Section */
+    .input-section {
+      text-align: center;
+      margin-bottom: 30px;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .input-group {
+      flex: 1;
+      max-width: 600px;
+      display: flex;
+      gap: 10px;
+    }
+    .input-field {
+      flex: 1;
+      padding: 12px;
+      font-size: 16px;
+      border: 2px solid var(--border-color);
+      border-radius: 8px;
+      transition: border-color 0.3s;
+    }
+    .input-field:focus {
+      outline: none;
+      border-color: var(--primary-color);
+    }
+    .btn {
+      padding: 12px 24px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .btn-primary {
+      background-color: var(--primary-color);
+      color: white;
+    }
+    .btn-primary:hover {
+      background-color: var(--primary-hover);
+      transform: translateY(-1px);
+    }
+    .btn-success {
+      background-color: var(--success-color);
+      color: white;
+    }
+    .btn-success:hover {
+      background-color: var(--success-hover);
+      transform: translateY(-1px);
+    }
+    /* Video Container */
+    .video-container {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 30px;
+      position: relative;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 6px var(--shadow-color);
+    }
+    /* Reaction Buttons */
+    .reaction-buttons {
+      text-align: center;
+      margin: 20px 0;
+      padding: 15px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 4px var(--shadow-color);
+    }
+    .reaction-buttons span {
+      font-size: 18px;
+      margin-right: 15px;
+      font-weight: 600;
+    }
+    .emoji-btn {
+      background: transparent;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      transition: transform 0.2s;
+      margin: 0 8px;
+      padding: 5px;
+    }
+    .emoji-btn:hover {
+      transform: scale(1.2);
+    }
+    /* Comment Section */
+    .comment-input-section {
+      margin-bottom: 30px;
+    }
+    .comment-textarea {
+      width: 100%;
+      height: 100px;
+      padding: 15px;
+      font-size: 16px;
+      border: 2px solid var(--border-color);
+      border-radius: 8px;
+      resize: vertical;
+      margin-bottom: 10px;
+      transition: border-color 0.3s;
+    }
+    .comment-textarea:focus {
+      outline: none;
+      border-color: var(--primary-color);
+    }
+    .comments-section {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 4px var(--shadow-color);
+    }
+    .comments-section h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: var(--text-color);
+    }
+    .comment {
+      display: flex;
+      align-items: flex-start;
+      padding: 15px;
+      border-bottom: 1px solid var(--border-color);
+      transition: background-color 0.3s;
+    }
+    .comment:hover {
+      background-color: #f8f9fa;
+    }
+    .comment:last-child {
+      border-bottom: none;
+    }
+    .timestamp {
+      font-size: 14px;
+      color: var(--primary-color);
+      margin-right: 15px;
+      cursor: pointer;
+      min-width: 60px;
+      font-weight: 600;
+      padding: 5px 10px;
+      border-radius: 4px;
+      background: #e7f1ff;
+      transition: background-color 0.3s;
+    }
+    .timestamp:hover {
+      background-color: #d0e3ff;
+    }
+    .comment-text {
+      flex: 1;
+      font-size: 16px;
+      word-break: break-word;
+      line-height: 1.5;
+    }
+    .reaction-emoji {
+      margin-right: 8px;
+      font-size: 20px;
+    }
+    .error-message {
+      color: var(--error-color);
+      text-align: center;
+      margin: 10px 0;
+      padding: 10px;
+      border-radius: 8px;
+      background-color: #ffe6e6;
+      display: none;
+    }
+    /* Responsive Design */
+    @media (max-width: 768px) {
+      .input-group {
+        flex-direction: column;
+      }
+      .btn {
+        width: 100%;
+      }
+      .video-container {
+        margin: 0 -20px;
+        border-radius: 0;
+      }
+    }
+    /* Loading Spinner */
+    .spinner {
+      display: none;
+      width: 40px;
+      height: 40px;
+      margin: 20px auto;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid var(--primary-color);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    /* Timeline Styles */
+    .timeline-container {
+      margin: 20px 0;
+      padding: 20px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 4px var(--shadow-color);
+      display: none;
+    }
+    .timeline {
+      position: relative;
+      height: 60px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      margin: 10px 0;
+    }
+    .timeline-progress {
+      position: absolute;
+      height: 100%;
+      background: #e7f1ff;
+      width: 0;
+      border-radius: 8px;
+      transition: width 0.3s;
+    }
+    .timeline-markers {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+    }
+    .timeline-marker {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      margin-left: -10px;
+      border-radius: 50%;
+      background: var(--primary-color);
+      cursor: pointer;
+      transition: transform 0.2s;
+      z-index: 1;
+    }
+    .timeline-marker:hover {
+      transform: scale(1.2);
+    }
+    .timeline-marker[data-type="reaction"] {
+      background: #ffd700;
+    }
+    .timeline-marker[data-type="comment"] {
+      background: var(--success-color);
+    }
+    .timeline-tooltip {
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      white-space: nowrap;
+      display: none;
+    }
+    .timeline-marker:hover .timeline-tooltip {
+      display: block;
+    }
+    /* Stats Panel */
+    .stats-panel {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 15px;
+      margin: 20px 0;
+      padding: 20px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 4px var(--shadow-color);
+      display: none;
+    }
+    .stat-card {
+      padding: 15px;
+      text-align: center;
+      background: #f8f9fa;
+      border-radius: 8px;
+      transition: transform 0.2s;
+    }
+    .stat-card:hover {
+      transform: translateY(-2px);
+    }
+    .stat-value {
+      font-size: 24px;
+      font-weight: bold;
+      color: var(--primary-color);
+    }
+    .stat-label {
+      font-size: 14px;
+      color: #666;
+      margin-top: 5px;
+    }
+    /* Reaction Summary */
+    .reaction-summary {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin: 20px 0;
+      padding: 15px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 4px var(--shadow-color);
+      display: none;
+    }
+    .reaction-stat {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .reaction-count {
+      font-weight: bold;
+      color: var(--primary-color);
+    }
+    /* Export Section */
+    .export-section {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin: 20px 0;
+      padding: 15px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 4px var(--shadow-color);
+      display: none;
+    }
+    .export-section h3 {
+      width: 100%;
+      text-align: center;
+      margin-bottom: 15px;
+    }
+    .export-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 15px;
+      background: #f8f9fa;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-weight: 500;
+      gap: 5px;
+    }
+    .export-btn:hover {
+      background: #e9ecef;
+      border-color: #adb5bd;
+      transform: translateY(-2px);
+    }
+    .export-btn i {
+      font-size: 18px;
+    }
+    /* Modal Styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      display: none;
+    }
+    .modal {
+      background: white;
+      border-radius: 10px;
+      max-width: 500px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+      padding: 20px;
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .modal-title {
+      font-size: 20px;
+      font-weight: 600;
+    }
+    .modal-close {
+      background: transparent;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #666;
+      transition: color 0.2s;
+    }
+    .modal-close:hover {
+      color: var(--error-color);
+    }
+    .modal-content {
+      margin-bottom: 20px;
+    }
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      padding-top: 15px;
+      border-top: 1px solid var(--border-color);
+    }
+    /* Reaction Input Modal */
+    .reaction-input {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 15px;
+      border: 1px solid var(--border-color);
+      border-radius: 5px;
+      font-size: 16px;
+    }
+    /* Animations */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in {
+      animation: fadeIn 0.3s ease-out;
+    }
+    /* New styles for video source selection */
+    .source-selector {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .source-btn {
+      background-color: #f8f9fa;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 8px 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 5px;
+    }
+    .source-btn.active {
+      background-color: var(--primary-color);
+      color: white;
+      border-color: var(--primary-color);
+    }
+    .source-btn:hover:not(.active) {
+      background-color: #e9ecef;
+    }
+    /* File Upload Form */
+    .file-upload-container {
+      display: none;
+      margin-bottom: 20px;
+    }
+    .file-upload-wrapper {
+      position: relative;
+      width: 100%;
+      height: 100px;
+      border: 2px dashed var(--border-color);
+      border-radius: 10px;
+      background-color: #f8f9fa;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      overflow: hidden;
+      margin-bottom: 10px;
+      transition: all 0.3s;
+    }
+    .file-upload-wrapper:hover {
+      background-color: #e9ecef;
+      border-color: var(--primary-color);
+    }
+    .file-upload-wrapper.drag-over {
+      background-color: #e7f1ff;
+      border-color: var(--primary-color);
+    }
+    .file-upload-input {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      left: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .upload-icon {
+      font-size: 32px;
+      margin-bottom: 10px;
+      color: var(--primary-color);
+    }
+    .upload-text {
+      font-size: 16px;
+      color: #666;
+    }
+    .upload-hint {
+      font-size: 12px;
+      color: #999;
+      margin-top: 5px;
+    }
+    .uploaded-file-info {
+      display: none;
+      padding: 10px;
+      background-color: #e7f1ff;
+      border-radius: 6px;
+      margin-top: 10px;
+    }
+    .file-name {
+      font-weight: 600;
+      color: var(--primary-color);
+    }
+    .file-size {
+      font-size: 12px;
+      color: #666;
+    }
+    /* Video URL Input Fields */
+    .video-url-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .video-platform-label {
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+    .provider-hint {
+      font-size: 12px;
+      color: #666;
+      margin-top: 5px;
+    }
+    /* Provider Logo Styles */
+    .provider-logo {
+      width: 16px;
+      height: 16px;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Video Reactions & Comments</h1>
+    <div class="error-message" id="errorMessage"></div>
+    <!-- Source Selector -->
+    <div class="source-selector">
+      <button class="source-btn active" data-source="youtube">YouTube</button>
+      <button class="source-btn" data-source="tiktok">TikTok</button>
+      <button class="source-btn" data-source="vimeo">Vimeo</button>
+      <button class="source-btn" data-source="dailymotion">Dailymotion</button>
+      <button class="source-btn" data-source="twitch">Twitch</button>
+      <button class="source-btn" data-source="facebook">Facebook</button>
+      <button class="source-btn" data-source="instagram">Instagram</button>
+      <button class="source-btn" data-source="odysee">Odysee</button>
+      <button class="source-btn" data-source="vk">VK</button>
+      <button class="source-btn" data-source="upload">Upload Video</button>
+    </div>
+    <!-- Video URL Input -->
+    <div class="input-section" id="videoUrlContainer">
+      <div class="input-group">
+        <input
+          type="text"
+          id="videoLink"
+          class="input-field"
+          placeholder="Enter video URL"
+          aria-label="Video URL"
+        />
+        <button id="loadVideoBtn" class="btn btn-primary">Load Video</button>
+      </div>
+      <div class="provider-hint" id="providerHint">
+        Example: https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID
+      </div>
+    </div>
+    <!-- File Upload Container -->
+    <div class="file-upload-container" id="fileUploadContainer">
+      <div class="file-upload-wrapper" id="fileUploadWrapper">
+        <input type="file" id="videoUpload" class="file-upload-input" accept="video/*" />
+        <div class="upload-icon">📁</div>
+        <div class="upload-text">Click or drop video file here</div>
+        <div class="upload-hint">Supported formats: MP4, WebM, OGG (max 100MB)</div>
+      </div>
+      <div class="uploaded-file-info" id="uploadedFileInfo">
+        <div class="file-name" id="uploadedFileName"></div>
+        <div class="file-size" id="uploadedFileSize"></div>
+      </div>
+      <button id="uploadVideoBtn" class="btn btn-primary" style="margin-top: 10px; width: 100%;">Use Uploaded Video</button>
+    </div>
+    <div class="spinner" id="loadingSpinner"></div>
+    <div class="video-container" id="videoContainer"></div>
+    <div class="reaction-buttons" id="reactionButtons" style="display: none;">
+      <span>Quick Reactions:</span>
+      <button class="emoji-btn" data-emoji="👍" aria-label="thumbs up">👍</button>
+      <button class="emoji-btn" data-emoji="❤️" aria-label="heart">❤️</button>
+      <button class="emoji-btn" data-emoji="😂" aria-label="laughing">😂</button>
+      <button class="emoji-btn" data-emoji="😮" aria-label="wow">😮</button>
+      <button class="emoji-btn" data-emoji="😢" aria-label="sad">😢</button>
+      <button class="emoji-btn" data-emoji="😡" aria-label="angry">😡</button>
+      <button class="emoji-btn" data-emoji="💡" aria-label="idea">💡</button>
+    </div>
+    <!-- Timeline -->
+    <div class="timeline-container" id="timelineContainer">
+      <h2>Activity Timeline</h2>
+      <div class="timeline">
+        <div class="timeline-progress" id="timelineProgress"></div>
+        <div class="timeline-markers" id="timelineMarkers"></div>
+      </div>
+    </div>
+    <!-- Stats Panel -->
+    <div class="stats-panel" id="statsPanel">
+      <div class="stat-card">
+        <div class="stat-value" id="totalCommentsValue">0</div>
+        <div class="stat-label">Total Comments</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="totalReactionsValue">0</div>
+        <div class="stat-label">Total Reactions</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="avgTimeValue">0:00</div>
+        <div class="stat-label">Average Activity Time</div>
+      </div>
+    </div>
+    <!-- Reaction Summary -->
+    <div class="reaction-summary" id="reactionSummary"></div>
+    <div class="comments-section">
+      <h2>Comments</h2>
+      <div id="commentsList"></div>
+    </div>
+    <!-- Export Section -->
+    <div class="export-section" id="exportSection">
+      <h3>Export Comments</h3>
+      <button id="exportCSV" class="export-btn">
+        <i>📊</i> CSV
+      </button>
+      <button id="exportText" class="export-btn">
+        <i>📝</i> Text
+      </button>
+      <button id="exportPDF" class="export-btn">
+        <i>📄</i> PDF
+      </button>
+      <button id="exportHTML" class="export-btn">
+        <i>🌐</i> HTML with Video
+      </button>
+    </div>
+  </div>
+  <!-- Reaction Text Modal -->
+  <div class="modal-overlay" id="reactionModal">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title">Add Reaction <span id="selectedEmoji"></span></span>
+        <button class="modal-close" id="closeReactionModal">&times;</button>
+      </div>
+      <div class="modal-content">
+        <p>Please add your thoughts along with this reaction:</p>
+        <input type="text" id="reactionText" class="reaction-input" placeholder="What do you think..." />
+        <input type="hidden" id="selectedEmojiInput" />
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="submitReaction">Add Reaction</button>
+      </div>
+    </div>
+  </div>
+  <!-- Script for PDF generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- Script for ZIP file creation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script>
+    // State management
+    const state = {
+      player: null,
+      videoLoaded: false,
+      currentVideoId: null,
+      videoTitle: 'Video', // Default title
+      currentProvider: 'youtube', // Default provider
+      uploadedVideo: null, // For uploaded videos
+      videoElement: null, // For HTML5 video player
+    };
+    // Constants
+    const YOUTUBE_API_URL = 'https://www.youtube.com/iframe_api';
+    // Video provider patterns
+    const VIDEO_PATTERNS = {
+      youtube: [
+        /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i,
+        /^[a-zA-Z0-9_-]{11}$/
+      ],
+      tiktok: [
+        /tiktok\.com\/@[^\/]+\/video\/(\d+)/i,
+        /vm\.tiktok\.com\/([^\/]+)/i
+      ],
+      vimeo: [
+        /vimeo\.com\/([0-9]+)/i,
+        /vimeo\.com\/channels\/[^\/]+\/([0-9]+)/i,
+        /vimeo\.com\/groups\/[^\/]+\/videos\/([0-9]+)/i
+      ],
+      dailymotion: [
+        /dailymotion\.com\/video\/([a-zA-Z0-9]+)/i,
+        /dai\.ly\/([a-zA-Z0-9]+)/i
+      ],
+      twitch: [
+        /twitch\.tv\/videos\/(\d+)/i,
+        /twitch\.tv\/[^\/]+\/clip\/([a-zA-Z0-9-]+)/i,
+        /clips\.twitch\.tv\/([a-zA-Z0-9-]+)/i
+      ],
+      facebook: [
+        /facebook\.com\/[^\/]+\/videos\/(\d+)/i,
+        /facebook\.com\/watch\/\?v=(\d+)/i,
+        /fb\.watch\/([^\/]+)/i
+      ],
+      instagram: [
+        /instagram\.com\/p\/([a-zA-Z0-9_-]+)/i,
+        /instagram\.com\/tv\/([a-zA-Z0-9_-]+)/i,
+        /instagram\.com\/reel\/([a-zA-Z0-9_-]+)/i
+      ],
+      odysee: [
+        /odysee\.com\/@[^:]+:([a-zA-Z0-9]{4})/i,
+        /odysee\.com\/\$\/[^\/]+\/([a-zA-Z0-9]{4})/i
+      ],
+      vk: [
+        /vk\.com\/video-?[0-9]+_([0-9]+)/i,
+        /vk\.com\/video\?z=video-?[0-9]+_([0-9]+)/i
+      ]
+    };
+    // DOM Elements
+    const elements = {
+      videoLink: document.getElementById('videoLink'),
+      loadVideoBtn: document.getElementById('loadVideoBtn'),
+      videoContainer: document.getElementById('videoContainer'),
+      reactionButtons: document.getElementById('reactionButtons'),
+      commentsList: document.getElementById('commentsList'),
+      errorMessage: document.getElementById('errorMessage'),
+      loadingSpinner: document.getElementById('loadingSpinner'),
+      exportSection: document.getElementById('exportSection'),
+      reactionModal: document.getElementById('reactionModal'),
+      selectedEmoji: document.getElementById('selectedEmoji'),
+      selectedEmojiInput: document.getElementById('selectedEmojiInput'),
+      reactionText: document.getElementById('reactionText'),
+      closeReactionModal: document.getElementById('closeReactionModal'),
+      submitReaction: document.getElementById('submitReaction'),
+      exportCSV: document.getElementById('exportCSV'),
+      exportText: document.getElementById('exportText'),
+      exportPDF: document.getElementById('exportPDF'),
+      exportHTML: document.getElementById('exportHTML'),
+      sourceButtons: document.querySelectorAll('.source-btn'),
+      providerHint: document.getElementById('providerHint'),
+      videoUrlContainer: document.getElementById('videoUrlContainer'),
+      fileUploadContainer: document.getElementById('fileUploadContainer'),
+      fileUploadWrapper: document.getElementById('fileUploadWrapper'),
+      videoUpload: document.getElementById('videoUpload'),
+      uploadedFileInfo: document.getElementById('uploadedFileInfo'),
+      uploadedFileName: document.getElementById('uploadedFileName'),
+      uploadedFileSize: document.getElementById('uploadedFileSize'),
+      uploadVideoBtn: document.getElementById('uploadVideoBtn')
+    };
+    // Load YouTube IFrame API
+    function loadYouTubeAPI() {
+      if (window.YT) return Promise.resolve();
+      return new Promise((resolve, reject) => {
+        const tag = document.createElement('script');
+        tag.src = YOUTUBE_API_URL;
+        tag.onload = resolve;
+        tag.onerror = () => reject(new Error('Failed to load YouTube API'));
+        document.head.appendChild(tag);
+        window.onYouTubeIframeAPIReady = resolve;
+      });
+    }
+    // Extract video ID from URL based on provider
+    function extractVideoID(url, provider) {
+      if (!url) return null;
+      const patterns = VIDEO_PATTERNS[provider] || [];
+      for (const pattern of patterns) {
+        const match = url.match(pattern);
+        if (match && match[1]) {
+          return match[1];
+        }
+      }
+      return null;
+    }
+    // Show error message
+    function showError(message, duration = 5000) {
+      elements.errorMessage.textContent = message;
+      elements.errorMessage.style.display = 'block';
+      elements.errorMessage.classList.add('fade-in');
+      setTimeout(() => {
+        elements.errorMessage.style.display = 'none';
+        elements.errorMessage.classList.remove('fade-in');
+      }, duration);
+    }
+    // Toggle loading spinner
+    function toggleLoading(show) {
+      elements.loadingSpinner.style.display = show ? 'block' : 'none';
+      elements.loadVideoBtn.disabled = show;
+      if (elements.uploadVideoBtn) {
+        elements.uploadVideoBtn.disabled = show;
+      }
+    }
+    // Initialize YouTube player
+    async function initializeYouTubePlayer(videoId) {
+      try {
+        await loadYouTubeAPI();
+        elements.videoContainer.innerHTML = '<div id="player"></div>';
+        state.player = new YT.Player('player', {
+          height: '390',
+          width: '640',
+          videoId: videoId,
+          playerVars: {
+            rel: 0,
+            modestbranding: 1,
+            playsinline: 1
+          },
+          events: {
+            onReady: onPlayerReady,
+            onError: onPlayerError,
+            onStateChange: onPlayerStateChange
+          }
+        });
+        state.videoLoaded = true;
+        state.currentVideoId = videoId;
+        elements.reactionButtons.style.display = 'block';
+        elements.exportSection.style.display = 'flex';
+        showFeaturePanels(true);
+        updateUI();
+      } catch (error) {
+        showError('Error loading YouTube video: ' + error.message);
+        throw error;
+      }
+    }
+    // Initialize TikTok player
+    function initializeTikTokPlayer(videoId) {
+      elements.videoContainer.innerHTML = `
+                <blockquote class="tiktok-embed" 
+                    cite="https://www.tiktok.com/@/video/${videoId}" 
+                    data-video-id="${videoId}" 
+                    style="max-width: 640px; min-width: 300px; width: 100%; height: 390px;">
+                    <section></section>
+                </blockquote>
+                <script async src="https://www.tiktok.com/embed.js"><\/script>
+            `;
+      state.player = {
+        getCurrentTime: () => 0,
+        getDuration: () => 60,
+        playVideo: () => console.log("TikTok play requested (not supported via API)"),
+        seekTo: (seconds) => console.log("TikTok seek requested (not supported via API)")
+      };
+      state.videoLoaded = true;
+      state.currentVideoId = videoId;
+      state.videoTitle = 'TikTok Video';
+      elements.reactionButtons.style.display = 'block';
+      elements.exportSection.style.display = 'flex';
+      showFeaturePanels(true);
+      updateUI();
+    }
+    // Initialize Vimeo player
+    function initializeVimeoPlayer(videoId) {
+      elements.videoContainer.innerHTML = `
+                <iframe id="player" 
+                    src="https://player.vimeo.com/video/${videoId}" 
+                    width="640" 
+                    height="390" 
+                    frameborder="0" 
+                    allow="autoplay; fullscreen; picture-in-picture" 
+                    allowfullscreen>
+                </iframe>
+                <script src="https://player.vimeo.com/api/player.js"><\/script>
+            `;
+      state.player = {
+        getCurrentTime: () => 0,
+        getDuration: () => 300,
+        playVideo: () => {
+          try {
+            document.getElementById('player').contentWindow.postMessage({ method: 'play' }, '*');
+          } catch (e) {
+            console.error('Could not send play command to Vimeo player', e);
+          }
+        },
+        seekTo: (seconds) => {
+          try {
+            document.getElementById('player').contentWindow.postMessage({ method: 'setCurrentTime', value: seconds }, '*');
+          } catch (e) {
+            console.error('Could not send seek command to Vimeo player', e);
+          }
+        }
+      };
+      state.videoLoaded = true;
+      state.currentVideoId = videoId;
+      state.videoTitle = 'Vimeo Video';
+      elements.reactionButtons.style.display = 'block';
+      elements.exportSection.style.display = 'flex';
+      showFeaturePanels(true);
+      updateUI();
+    }
+    // Initialize Dailymotion player
+    function initializeDailymotionPlayer(videoId) {
+      elements.videoContainer.innerHTML = `
+                <iframe id="player" 
+                    frameborder="0" 
+                    width="640" 
+                    height="390" 
+                    src="https://www.dailymotion.com/embed/video/${videoId}" 
+                    allowfullscreen allow="autoplay">
+                </iframe>
+            `;
+      state.player = {
+        getCurrentTime: () => 0,
+        getDuration: () => 300,
+        playVideo: () => {
+          try {
+            document.getElementById('player').contentWindow.postMessage('play', '*');
+          } catch (e) {
+            console.error('Could not send play command to Dailymotion player', e);
+          }
+        },
+        seekTo: (seconds) => {
+          try {
+            document.getElementById('player').contentWindow.postMessage({ command: 'seek', parameters: [seconds] }, '*');
+          } catch (e) {
+            console.error('Could not send seek command to Dailymotion player', e);
+          }
+        }
+      };
+      state.videoLoaded = true;
+      state.currentVideoId = videoId;
+      state.videoTitle = 'Dailymotion Video';
+      elements.reactionButtons.style.display = 'block';
+      elements.exportSection.style.display = 'flex';
+      showFeaturePanels(true);
+      updateUI();
+    }
+    // Initialize Twitch player
+    function initializeTwitchPlayer(videoId) {
+      elements.videoContainer.innerHTML = `
+                <iframe id="player" 
+                    src="https://player.twitch.tv/?video=${videoId}&parent=${window.location.hostname}" 
+                    height="390" 
+                    width="640" 
+                    allowfullscreen>
+                </iframe>
+            `;
+      state.player = {
+        getCurrentTime: () => 0,
+        getDuration: () => 3600,
+        playVideo: () => console.log('Twitch play requested (not supported via simple iframe)'),
+        seekTo: (seconds) => console.log('Twitch seek requested (not supported via simple iframe)')
+      };
+      state.videoLoaded = true;
+      state.currentVideoId = videoId;
+      state.videoTitle = 'Twitch Video';
+      elements.reactionButtons.style.display = 'block';
+      elements.exportSection.style.display = 'flex';
+      showFeaturePanels(true);
+      updateUI();
+    }
+    // Initialize Facebook player
+    function initializeFacebookPlayer(videoId) {
+      elements.videoContainer.innerHTML = `
+                <iframe id="player" 
+                    src="https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2Ffacebook%2Fvideos%2F${videoId}%2F&show_text=false" 
+                    width="640" 
+                    height="390" 
+                    style="border:none;overflow:hidden" 
+                    scrolling="no" 
+                    frameborder="0" 
+                    allowfullscreen="true" 
+                    allow="autoplay; clipboard-write; encrypted-media; picture-in-picture">
+                </iframe>
+            `;
+      state.player = {
+        getCurrentTime: () => 0,
+        getDuration: () => 300,
+        playVideo: () => console.log('Facebook play requested (not supported via iframe)'),
+        seekTo: (seconds) => console.log('Facebook seek requested (not supported via iframe)')
+      };
+      state.videoLoaded = true;
+      state.currentVideoId = videoId;
+      state.videoTitle = 'Facebook Video';
+      elements.reactionButtons.style.display = 'block';
+      elements.exportSection.style.display = 'flex';
+      showFeaturePanels(true);
+      updateUI();
+    }
+    // Initialize Instagram player
+    function initializeInstagramPlayer(videoId) {
+      elements.videoContainer.innerHTML = `
+                <iframe id="player" 
+                    src="https://www.instagram.com/p/${videoId}/embed/" 
+                    width="640" 
+                    height="520" 
+                    frameborder="0" 
+                    scrolling="no" 
+                    allowtransparency="true">
+                </iframe>
+            `;
+      state.player = {
+        getCurrentTime: () => 0,
+        getDuration: () => 60,
+        playVideo: () => console.log('Instagram play requested (not supported via iframe)'),
+        seekTo: (seconds) => console.log('Instagram seek requested (not supported via iframe)')
+      };
+      state.videoLoaded = true;
+      state.currentVideoId = videoId;
+      state.videoTitle = 'Instagram Video';
+      elements.reactionButtons.style.display = 'block';
+      elements.exportSection.style.display = 'flex';
+      showFeaturePanels(true);
+      updateUI();
+    }
+    // Initialize Odysee player
+    function initializeOdyseePlayer(videoId) {
+      elements.videoContainer.innerHTML = `
+                <iframe id="player" 
+                    width="640" 
+                    height="390" 
+                    src="https://odysee.com/$/embed/${videoId}" 
+                    allowfullscreen>
+                </iframe>
+            `;
+      state.player = {
+        getCurrentTime: () => 0,
+        getDuration: () => 600,
+        playVideo: () => {
+          try {
+            document.getElementById('player').contentWindow.postMessage(JSON.stringify({ type: 'play' }), '*');
+          } catch (e) {
+            console.error('Could not send play command to Odysee player', e);
+          }
+        },
+        seekTo: (seconds) => {
+          try {
+            document.getElementById('player').contentWindow.postMessage(JSON.stringify({ type: 'seek', time: seconds }), '*');
+          } catch (e) {
+            console.error('Could not send seek command to Odysee player', e);
+          }
+        }
+      };
+      state.videoLoaded = true;
+      state.currentVideoId = videoId;
+      state.videoTitle = 'Odysee Video';
+      elements.reactionButtons.style.display = 'block';
+      elements.exportSection.style.display = 'flex';
+      showFeaturePanels(true);
+      updateUI();
+    }
+    // Initialize VK player
+    function initializeVKPlayer(videoId) {
+      elements.videoContainer.innerHTML = `
+                <iframe id="player" 
+                    width="640" 
+                    height="390" 
+                    src="https://vk.com/video_ext.php?oid=-1&id=${videoId}&hd=2" 
+                    allow="autoplay; encrypted-media; fullscreen; picture-in-picture;" 
+                    frameborder="0" 
+                    allowfullscreen>
+                </iframe>
+            `;
+      state.player = {
+        getCurrentTime: () => 0,
+        getDuration: () => 600,
+        playVideo: () => {
+          try {
+            document.getElementById('player').contentWindow.postMessage('VKWebAppPlayVideo', '*');
+          } catch (e) {
+            console.error('Could not send play command to VK player', e);
+          }
+        },
+        seekTo: (seconds) => {
+          console.warn('Seeking not supported for VK videos');
+        }
+      };
+      state.videoLoaded = true;
+      state.currentVideoId = videoId;
+      state.videoTitle = 'VK Video';
+      elements.reactionButtons.style.display = 'block';
+      elements.exportSection.style.display = 'flex';
+      showFeaturePanels(true);
+      updateUI();
+    }
+    // Initialize HTML5 Video Player for uploaded videos
+    function initializeHTML5Player(videoFile) {
+      const videoURL = URL.createObjectURL(videoFile);
+      elements.videoContainer.innerHTML = `
+                <video id="videoPlayer" 
+                    controls 
+                    width="640" 
+                    height="390" 
+                    style="max-width:100%">
+                    <source src="${videoURL}" type="${videoFile.type}">
+                    Your browser does not support the video tag.
+                </video>
+            `;
+      const videoElement = document.getElementById('videoPlayer');
+      state.videoElement = videoElement;
+      state.player = {
+        getCurrentTime: () => videoElement.currentTime,
+        getDuration: () => videoElement.duration,
+        playVideo: () => videoElement.play(),
+        seekTo: (seconds) => {
+          videoElement.currentTime = seconds;
+          videoElement.play();
+        }
+      };
+      state.videoLoaded = true;
+      state.currentVideoId = 'local-' + Date.now();
+      state.videoTitle = videoFile.name || 'Uploaded Video';
+      state.uploadedVideo = videoFile;
+      elements.reactionButtons.style.display = 'block';
+      elements.exportSection.style.display = 'flex';
+      showFeaturePanels(true);
+      updateUI();
+    }
+    // Initialize player based on selected provider
+    async function initializePlayer(videoId) {
+      if (!videoId && state.currentProvider !== 'upload') {
+        showError('Invalid video URL. Please check the link.');
+        return;
+      }
+      try {
+        toggleLoading(true);
+        switch (state.currentProvider) {
+          case 'youtube':
+            await initializeYouTubePlayer(videoId);
+            break;
+          case 'tiktok':
+            initializeTikTokPlayer(videoId);
+            break;
+          case 'vimeo':
+            initializeVimeoPlayer(videoId);
+            break;
+          case 'dailymotion':
+            initializeDailymotionPlayer(videoId);
+            break;
+          case 'twitch':
+            initializeTwitchPlayer(videoId);
+            break;
+          case 'facebook':
+            initializeFacebookPlayer(videoId);
+            break;
+          case 'instagram':
+            initializeInstagramPlayer(videoId);
+            break;
+          case 'odysee':
+            initializeOdyseePlayer(videoId);
+            break;
+          case 'vk':
+            initializeVKPlayer(videoId);
+            break;
+          case 'upload':
+            if (!state.uploadedVideo) {
+              showError('Please select a video file to upload.');
+              toggleLoading(false);
+              return;
+            }
+            initializeHTML5Player(state.uploadedVideo);
+            break;
+          default:
+            showError('Unknown video provider');
+            toggleLoading(false);
+            return;
+        }
+        loadComments(state.currentVideoId);
+      } catch (error) {
+        showError('Error loading video: ' + error.message);
+      } finally {
+        toggleLoading(false);
+      }
+    }
+    // Player event handlers
+    function onPlayerReady(event) {
+      if (state.player && state.player.getVideoData) {
+        state.videoTitle = state.player.getVideoData().title || 'YouTube Video';
+      }
+    }
+    function onPlayerError(event) {
+      const errorMessages = {
+        2: 'Invalid video ID',
+        5: 'HTML5 player error',
+        100: 'Video not found',
+        101: 'Embedding disabled by video owner',
+        150: 'Embedding disabled by video owner'
+      };
+      showError(errorMessages[event.data] || 'An error occurred while loading the video');
+    }
+    function onPlayerStateChange(event) {
+      // Handle state changes if needed
+    }
+    // Format timestamp
+    function formatTime(seconds) {
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      const secs = Math.floor(seconds % 60);
+      return hours > 0 ? `${hours}:${padZero(minutes)}:${padZero(secs)}` : `${minutes}:${padZero(secs)}`;
+    }
+    function padZero(num) {
+      return num.toString().padStart(2, '0');
+    }
+    // Add comment or reaction to the list
+    function addComment({ text, timestamp, type, emoji }) {
+      const commentDiv = document.createElement('div');
+      commentDiv.className = 'comment fade-in';
+      if (type === 'reaction') {
+        commentDiv.classList.add('reaction');
+      }
+      const timeStr = formatTime(timestamp);
+      let content = '';
+      if (type === 'reaction' && emoji) {
+        content = `<span class="reaction-emoji">${emoji}</span>${sanitizeHTML(text)}`;
+      } else {
+        content = sanitizeHTML(text);
+      }
+      commentDiv.innerHTML = `
+                <span class="timestamp" data-time="${timestamp}">[${timeStr}]</span>
+                <span class="comment-text">${content}</span>
+            `;
+      elements.commentsList.insertBefore(commentDiv, elements.commentsList.firstChild);
+      saveComments();
+    }
+    // Show reaction modal
+    function showReactionModal(emoji) {
+      elements.selectedEmoji.textContent = emoji;
+      elements.selectedEmojiInput.value = emoji;
+      elements.reactionText.value = '';
+      elements.reactionModal.style.display = 'flex';
+      elements.reactionText.focus();
+    }
+    // Hide reaction modal
+    function hideReactionModal() {
+      elements.reactionModal.style.display = 'none';
+    }
+    // Sanitize HTML to prevent XSS
+    function sanitizeHTML(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    // Local Storage Functions
+    function saveComments() {
+      const comments = Array.from(elements.commentsList.children).map(comment => {
+        const isReaction = comment.classList.contains('reaction');
+        const textElement = comment.querySelector('.comment-text');
+        const emojiElement = textElement.querySelector('.reaction-emoji');
+        const commentObj = {
+          text: isReaction ? textElement.textContent.replace(emojiElement ? emojiElement.textContent : '', '') : textElement.textContent,
+          timestamp: parseInt(comment.querySelector('.timestamp').dataset.time),
+          type: isReaction ? 'reaction' : 'text'
+        };
+        if (isReaction && emojiElement) {
+          commentObj.emoji = emojiElement.textContent;
+        }
+        return commentObj;
+      });
+      try {
+        localStorage.setItem(`comments_${state.currentVideoId}`, JSON.stringify(comments));
+      } catch (e) {
+        console.error('Error saving comments to localStorage:', e);
+      }
+    }
+    function loadComments(videoId) {
+      try {
+        const savedComments = localStorage.getItem(`comments_${videoId}`);
+        if (savedComments) {
+          const comments = JSON.parse(savedComments);
+          elements.commentsList.innerHTML = '';
+          comments.forEach(comment => addComment(comment));
+        } else {
+          elements.commentsList.innerHTML = '';
+        }
+      } catch (e) {
+        console.error('Error loading comments from localStorage:', e);
+      }
+    }
+    // Export Functions
+    function exportAsCSV() {
+      const comments = Array.from(elements.commentsList.children);
+      let csvContent = "timestamp,time,type,content\n";
+      comments.forEach(comment => {
+        const timestamp = parseInt(comment.querySelector('.timestamp').dataset.time);
+        const formattedTime = comment.querySelector('.timestamp').textContent.replace('[', '').replace(']', '');
+        const isReaction = comment.classList.contains('reaction');
+        const content = comment.querySelector('.comment-text').textContent;
+        const escapedContent = content.replace(/"/g, '""');
+        csvContent += `${timestamp},"${formattedTime}","${isReaction ? 'Reaction' : 'Comment'}","${escapedContent}"\n`;
+      });
+      downloadFile(csvContent, `${state.videoTitle}_comments.csv`, 'text/csv');
+    }
+    function exportAsText() {
+      const comments = Array.from(elements.commentsList.children);
+      let textContent = `Comments for: ${state.videoTitle}\nVideo ID: ${state.currentVideoId}\nExported on: ${new Date().toLocaleString()}\n\n`;
+      comments.forEach(comment => {
+        const timestamp = comment.querySelector('.timestamp').textContent;
+        const content = comment.querySelector('.comment-text').textContent;
+        const isReaction = comment.classList.contains('reaction');
+        textContent += `${timestamp} ${isReaction ? '[Reaction]' : ''}: ${content}\n\n`;
+      });
+      downloadFile(textContent, `${state.videoTitle}_comments.txt`, 'text/plain');
+    }
+    function exportAsPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.setFontSize(16);
+      doc.text(`Comments for: ${state.videoTitle}`, 10, 10);
+      doc.setFontSize(12);
+      doc.text(`Video ID: ${state.currentVideoId}`, 10, 20);
+      doc.text(`Exported on: ${new Date().toLocaleString()}`, 10, 30);
+      const comments = Array.from(elements.commentsList.children);
+      let y = 40;
+      doc.setFontSize(10);
+      comments.forEach(comment => {
+        if (y > 270) {
+          doc.addPage();
+          y = 20;
+        }
+        const timestamp = comment.querySelector('.timestamp').textContent;
+        const content = comment.querySelector('.comment-text').textContent;
+        const isReaction = comment.classList.contains('reaction');
+        doc.text(`${timestamp} ${isReaction ? '[Reaction]' : ''}:`, 10, y);
+        const contentLines = doc.splitTextToSize(content, 180);
+        doc.text(contentLines, 10, y + 5);
+        y += 10 + (contentLines.length * 5);
+      });
+      doc.save(`${state.videoTitle}_comments.pdf`);
+    }
+    async function exportAsHTML() {
+      let videoEmbed = '';
+      let videoFileName = '';
+      switch (state.currentProvider) {
+        case 'youtube':
+          videoEmbed = `
+                        <iframe 
+                            width="560" 
+                            height="315" 
+                            src="https://www.youtube.com/embed/${state.currentVideoId}" 
+                            frameborder="0" 
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                            allowfullscreen>
+                        </iframe>`;
+          break;
+        case 'tiktok':
+          videoEmbed = `
+                        <blockquote class="tiktok-embed" 
+                            cite="https://www.tiktok.com/@/video/${state.currentVideoId}" 
+                            data-video-id="${state.currentVideoId}" 
+                            style="max-width: 605px; min-width: 325px;">
+                            <section></section>
+                        </blockquote>
+                        <script async src="https://www.tiktok.com/embed.js"><\/script>`;
+          break;
+        case 'vimeo':
+          videoEmbed = `
+                        <iframe 
+                            src="https://player.vimeo.com/video/${state.currentVideoId}" 
+                            width="560" 
+                            height="315" 
+                            frameborder="0" 
+                            allow="autoplay; fullscreen; picture-in-picture" 
+                            allowfullscreen>
+                        </iframe>
+                        <script src="https://player.vimeo.com/api/player.js"><\/script>`;
+          break;
+        case 'dailymotion':
+          videoEmbed = `
+                        <iframe 
+                            frameborder="0" 
+                            width="560" 
+                            height="315" 
+                            src="https://www.dailymotion.com/embed/video/${state.currentVideoId}" 
+                            allowfullscreen allow="autoplay">
+                        </iframe>`;
+          break;
+        case 'twitch':
+          videoEmbed = `
+                        <iframe 
+                            src="https://player.twitch.tv/?video=${state.currentVideoId}&parent=localhost" 
+                            height="315" 
+                            width="560" 
+                            allowfullscreen>
+                        </iframe>`;
+          break;
+        case 'facebook':
+          videoEmbed = `
+                        <iframe 
+                            src="https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2Ffacebook%2Fvideos%2F${state.currentVideoId}%2F&show_text=false" 
+                            width="560" 
+                            height="315" 
+                            style="border:none;overflow:hidden" 
+                            scrolling="no" 
+                            frameborder="0" 
+                            allowfullscreen="true" 
+                            allow="autoplay; clipboard-write; encrypted-media; picture-in-picture">
+                        </iframe>`;
+          break;
+        case 'instagram':
+          videoEmbed = `
+                        <iframe 
+                            src="https://www.instagram.com/p/${state.currentVideoId}/embed/" 
+                            width="400" 
+                            height="480" 
+                            frameborder="0" 
+                            scrolling="no" 
+                            allowtransparency="true">
+                        </iframe>`;
+          break;
+        case 'odysee':
+          videoEmbed = `
+                        <iframe 
+                            width="560" 
+                            height="315" 
+                            src="https://odysee.com/$/embed/${state.currentVideoId}" 
+                            allowfullscreen>
+                        </iframe>`;
+          break;
+        case 'vk':
+          videoEmbed = `
+                        <iframe 
+                            width="560" 
+                            height="315" 
+                            src="https://vk.com/video_ext.php?oid=-1&id=${state.currentVideoId}&hd=2" 
+                            allow="autoplay; encrypted-media; fullscreen; picture-in-picture;" 
+                            frameborder="0" 
+                            allowfullscreen>
+                        </iframe>`;
+          break;
+        case 'upload':
+          videoFileName = sanitizeFileName(state.uploadedVideo.name);
+          videoEmbed = `
+                        <video width="560" height="315" controls>
+                            <source src="${videoFileName}" type="${state.uploadedVideo.type}">
+                            Your browser does not support the video tag.
+                        </video>`;
+          break;
+      }
+      let htmlContent = `
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>${state.videoTitle} - Comments Export</title>
+                <style>
+                    body {
+                        font-family: Arial, sans-serif;
+                        max-width: 800px;
+                        margin: 0 auto;
+                        padding: 20px;
+                        line-height: 1.6;
+                    }
+                    h1 {
+                        color: #333;
+                        border-bottom: 2px solid #eee;
+                        padding-bottom: 10px;
+                    }
+                    .video-container {
+                        position: relative;
+                        padding-bottom: 56.25%;
+                        height: 0;
+                        overflow: hidden;
+                        margin-bottom: 20px;
+                    }
+                    .video-container iframe, .video-container video, .video-container blockquote {
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                    }
+                    .comment {
+                        padding: 15px;
+                        margin-bottom: 10px;
+                        border-bottom: 1px solid #eee;
+                    }
+                    .timestamp {
+                        color: #007bff;
+                        font-weight: bold;
+                        margin-right: 10px;
+                        text-decoration: none;
+                    }
+                    .timestamp:hover {
+                        text-decoration: underline;
+                    }
+                    .reaction-label {
+                        background-color: #ffd700;
+                        color: #333;
+                        padding: 2px 6px;
+                        border-radius: 4px;
+                        font-size: 12px;
+                        margin-right: 8px;
+                    }
+                    .reaction-emoji {
+                        margin-right: 5px;
+                        font-size: 18px;
+                    }
+                    .export-info {
+                        color: #666;
+                        font-size: 12px;
+                        margin-top: 20px;
+                        text-align: center;
+                    }
+                </style>
+            </head>
+            <body>
+                <h1>${state.videoTitle}</h1>
+                <div class="video-container">
+                    ${videoEmbed}
+                </div>
+                <h2>Comments</h2>
+            `;
+      const comments = Array.from(elements.commentsList.children);
+      comments.forEach(comment => {
+        const timestamp = comment.querySelector('.timestamp').textContent;
+        const timestampValue = comment.querySelector('.timestamp').dataset.time;
+        const content = comment.querySelector('.comment-text').innerHTML;
+        const isReaction = comment.classList.contains('reaction');
+        let timestampLink = '';
+        if (state.currentProvider === 'youtube') {
+          timestampLink = `https://www.youtube.com/watch?v=${state.currentVideoId}&t=${timestampValue}`;
+        } else if (state.currentProvider === 'upload') {
+          timestampLink = `javascript:document.querySelector('video').currentTime=${timestampValue};document.querySelector('video').play();`;
+        } else {
+          timestampLink = '#';
+        }
+        htmlContent += `
+                <div class="comment">
+                    <a href="${timestampLink}" class="timestamp" ${state.currentProvider === 'youtube' ? 'target="_blank"' : ''}>${timestamp}</a>
+                    ${isReaction ? '<span class="reaction-label">Reaction</span>' : ''}
+                    <span class="comment-content">${content}</span>
+                </div>
+                `;
+      });
+      htmlContent += `
+                <div class="export-info">
+                    Exported on: ${new Date().toLocaleString()}<br>
+                    Provider: ${state.currentProvider.toUpperCase()}<br>
+                    Video ID: ${state.currentVideoId}
+                </div>
+            </body>
+            </html>
+            `;
+      if (state.currentProvider === 'upload' && state.uploadedVideo) {
+        await exportAsZipWithVideo(htmlContent, videoFileName);
+      } else {
+        downloadFile(htmlContent, `${state.videoTitle}_comments.html`, 'text/html');
+      }
+    }
+    async function exportAsZipWithVideo(htmlContent, videoFileName) {
+      try {
+        toggleLoading(true);
+        const zip = new JSZip();
+        zip.file("index.html", htmlContent);
+        zip.file(videoFileName, state.uploadedVideo);
+        const zipBlob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+        const zipUrl = URL.createObjectURL(zipBlob);
+        const a = document.createElement('a');
+        a.href = zipUrl;
+        a.download = sanitizeFileName(`${state.videoTitle}_with_video.zip`);
+        a.click();
+        setTimeout(() => {
+          URL.revokeObjectURL(zipUrl);
+        }, 100);
+      } catch (error) {
+        console.error('Error creating zip file:', error);
+        showError('Error creating zip file: ' + error.message);
+      } finally {
+        toggleLoading(false);
+      }
+    }
+    function sanitizeFileName(name) {
+      return name.replace(/[^\w\s\.-]/gi, '')
+                 .replace(/\s+/g, '_')
+                 .substring(0, 100);
+    }
+    function downloadFile(content, filename, contentType) {
+      const blob = new Blob([content], { type: contentType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = sanitizeFileName(filename);
+      a.click();
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 100);
+    }
+    // Timeline Management
+    function updateTimeline() {
+      if (!state.player || !state.videoLoaded) return;
+      try {
+        const duration = state.player.getDuration() || 0;
+        const currentTime = state.player.getCurrentTime() || 0;
+        if (duration > 0) {
+          const progress = (currentTime / duration) * 100;
+          const timelineProgress = document.getElementById('timelineProgress');
+          if (timelineProgress) {
+            timelineProgress.style.width = `${progress}%`;
+          }
+        }
+      } catch (e) {
+        console.error('Error updating timeline:', e);
+      }
+    }
+    function createTimelineMarkers() {
+      const markers = document.getElementById('timelineMarkers');
+      markers.innerHTML = '';
+      if (!state.player) return;
+      try {
+        const comments = Array.from(elements.commentsList.children);
+        const duration = state.player.getDuration() || 600;
+        comments.forEach(comment => {
+          const timestamp = parseInt(comment.querySelector('.timestamp').dataset.time);
+          const position = (timestamp / duration) * 100;
+          const type = comment.classList.contains('reaction') ? 'reaction' : 'comment';
+          const text = comment.querySelector('.comment-text').textContent;
+          if (position >= 0 && position <= 100) {
+            const marker = document.createElement('div');
+            marker.className = 'timeline-marker';
+            marker.setAttribute('data-type', type);
+            marker.style.left = `${position}%`;
+            const tooltip = document.createElement('div');
+            tooltip.className = 'timeline-tooltip';
+            tooltip.textContent = `${formatTime(timestamp)} - ${text.length > 30 ? text.substring(0, 30) + '...' : text}`;
+            marker.appendChild(tooltip);
+            markers.appendChild(marker);
+            marker.addEventListener('click', () => {
+              if (state.player && typeof state.player.seekTo === 'function') {
+                state.player.seekTo(timestamp, true);
+                if (typeof state.player.playVideo === 'function') {
+                  state.player.playVideo();
+                }
+              }
+            });
+          }
+        });
+      } catch (e) {
+        console.error('Error creating timeline markers:', e);
+      }
+    }
+    // Stats Management
+    function updateStats() {
+      const comments = Array.from(elements.commentsList.children);
+      const reactions = comments.filter(c => c.classList.contains('reaction'));
+      const textComments = comments.filter(c => !c.classList.contains('reaction'));
+      document.getElementById('totalCommentsValue').textContent = textComments.length;
+      document.getElementById('totalReactionsValue').textContent = reactions.length;
+      const timestamps = comments.map(c => parseInt(c.querySelector('.timestamp').dataset.time));
+      const avgTime = timestamps.length ? Math.floor(timestamps.reduce((a, b) => a + b, 0) / timestamps.length) : 0;
+      document.getElementById('avgTimeValue').textContent = formatTime(avgTime);
+      const reactionSummary = document.getElementById('reactionSummary');
+      reactionSummary.innerHTML = '';
+      const reactionCounts = {};
+      reactions.forEach(reaction => {
+        const emojiElement = reaction.querySelector('.reaction-emoji');
+        const emoji = emojiElement ? emojiElement.textContent : '👍';
+        reactionCounts[emoji] = (reactionCounts[emoji] || 0) + 1;
+      });
+      Object.entries(reactionCounts).forEach(([emoji, count]) => {
+        const stat = document.createElement('div');
+        stat.className = 'reaction-stat';
+        stat.innerHTML = `
+                    <span class="reaction-emoji">${emoji}</span>
+                    <span class="reaction-count">${count}</span>
+                `;
+        reactionSummary.appendChild(stat);
+      });
+    }
+    // Show/hide feature panels
+    function showFeaturePanels(show) {
+      const panels = [
+        document.getElementById('timelineContainer'),
+        document.getElementById('statsPanel'),
+        document.getElementById('reactionSummary'),
+        document.getElementById('exportSection')
+      ];
+      panels.forEach(panel => {
+        if (panel) {
+          if (panel.id === 'exportSection' || panel.id === 'reactionSummary') {
+            panel.style.display = show ? 'flex' : 'none';
+          } else {
+            panel.style.display = show ? 'block' : 'none';
+          }
+        }
+      });
+    }
+    // Update provider hint based on selected provider
+    function updateProviderHint() {
+      let hint = '';
+      switch (state.currentProvider) {
+        case 'youtube':
+          hint = 'Example: https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID';
+          break;
+        case 'tiktok':
+          hint = 'Example: https://www.tiktok.com/@username/video/1234567890123456789';
+          break;
+        case 'vimeo':
+          hint = 'Example: https://vimeo.com/123456789';
+          break;
+        case 'dailymotion':
+          hint = 'Example: https://www.dailymotion.com/video/x7yz1a2 or https://dai.ly/x7yz1a2';
+          break;
+        case 'twitch':
+          hint = 'Example: https://www.twitch.tv/videos/123456789';
+          break;
+        case 'facebook':
+          hint = 'Example: https://www.facebook.com/watch/?v=123456789';
+          break;
+        case 'instagram':
+          hint = 'Example: https://www.instagram.com/p/abCD123EfGh/';
+          break;
+        case 'odysee':
+          hint = 'Example: https://odysee.com/@channel:4/video-name';
+          break;
+        case 'vk':
+          hint = 'Example: https://vk.com/video-12345_67890';
+          break;
+        default:
+          hint = '';
+      }
+      elements.providerHint.textContent = hint;
+    }
+    // Format file size
+    function formatFileSize(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    // Handle file upload events
+    function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      if (!file.type.startsWith('video/')) {
+        showError('Please select a valid video file');
+        return;
+      }
+      if (file.size > 100 * 1024 * 1024) {
+        showError('File size exceeds 100MB limit');
+        return;
+      }
+      state.uploadedVideo = file;
+      elements.uploadedFileName.textContent = file.name;
+      elements.uploadedFileSize.textContent = formatFileSize(file.size);
+      elements.uploadedFileInfo.style.display = 'block';
+    }
+    // Handle drag and drop events
+    function handleDragOver(event) {
+      event.preventDefault();
+      elements.fileUploadWrapper.classList.add('drag-over');
+    }
+    function handleDragLeave(event) {
+      event.preventDefault();
+      elements.fileUploadWrapper.classList.remove('drag-over');
+    }
+    function handleDrop(event) {
+      event.preventDefault();
+      elements.fileUploadWrapper.classList.remove('drag-over');
+      if (event.dataTransfer.items) {
+        for (let i = 0; i < event.dataTransfer.items.length; i++) {
+          if (event.dataTransfer.items[i].kind === 'file') {
+            const file = event.dataTransfer.items[i].getAsFile();
+            elements.videoUpload.files = event.dataTransfer.files;
+            handleFileSelect({ target: { files: [file] } });
+            break;
+          }
+        }
+      } else {
+        if (event.dataTransfer.files.length > 0) {
+          elements.videoUpload.files = event.dataTransfer.files;
+          handleFileSelect({ target: { files: [event.dataTransfer.files[0]] } });
+        }
+      }
+    }
+    // Switch between different video sources
+    function switchVideoSource(sourceType) {
+      state.currentProvider = sourceType;
+      elements.videoUrlContainer.style.display = 'none';
+      elements.fileUploadContainer.style.display = 'none';
+      if (sourceType === 'upload') {
+        elements.fileUploadContainer.style.display = 'block';
+      } else {
+        elements.videoUrlContainer.style.display = 'block';
+        updateProviderHint();
+      }
+      elements.sourceButtons.forEach(button => {
+        if (button.getAttribute('data-source') === sourceType) {
+          button.classList.add('active');
+        } else {
+          button.classList.remove('active');
+        }
+      });
+    }
+    // Update all UI components
+    function updateUI() {
+      updateTimeline();
+      createTimelineMarkers();
+      updateStats();
+    }
+    // Event Listeners
+    elements.sourceButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const sourceType = button.getAttribute('data-source');
+        switchVideoSource(sourceType);
+      });
+    });
+    elements.loadVideoBtn.addEventListener('click', async () => {
+      const url = elements.videoLink.value.trim();
+      const videoId = extractVideoID(url, state.currentProvider);
+      if (videoId) {
+        await initializePlayer(videoId);
+      } else {
+        showError(`Please enter a valid ${state.currentProvider.toUpperCase()} URL`);
+      }
+    });
+    elements.videoLink.addEventListener('keypress', async (e) => {
+      if (e.key === 'Enter') {
+        elements.loadVideoBtn.click();
+      }
+    });
+    elements.videoUpload.addEventListener('change', handleFileSelect);
+    elements.fileUploadWrapper.addEventListener('dragover', handleDragOver);
+    elements.fileUploadWrapper.addEventListener('dragleave', handleDragLeave);
+    elements.fileUploadWrapper.addEventListener('drop', handleDrop);
+    elements.uploadVideoBtn.addEventListener('click', async () => {
+      if (state.uploadedVideo) {
+        await initializePlayer();
+      } else {
+        showError('Please select a video file to upload');
+      }
+    });
+    document.querySelectorAll('.emoji-btn').forEach(button => {
+      button.addEventListener('click', () => {
+        if (!state.videoLoaded) {
+          showError('Please load a video first');
+          return;
+        }
+        const emoji = button.getAttribute('data-emoji');
+        showReactionModal(emoji);
+      });
+    });
+    elements.commentsList.addEventListener('click', (e) => {
+      if (e.target.classList.contains('timestamp') && state.videoLoaded) {
+        const time = parseInt(e.target.dataset.time, 10);
+        if (state.player && typeof state.player.seekTo === 'function') {
+          state.player.seekTo(time, true);
+          if (typeof state.player.playVideo === 'function') {
+            state.player.playVideo();
+          }
+        }
+      }
+    });
+    elements.closeReactionModal.addEventListener('click', hideReactionModal);
+    elements.submitReaction.addEventListener('click', () => {
+      const emoji = elements.selectedEmojiInput.value;
+      const text = elements.reactionText.value.trim();
+      if (!text) {
+        showError('Please add some text with your reaction');
+        return;
+      }
+      try {
+        const currentTime = Math.floor(state.player.getCurrentTime());
+        addComment({ 
+          text: text, 
+          timestamp: currentTime, 
+          type: 'reaction',
+          emoji: emoji
+        });
+      } catch (e) {
+        console.error('Error adding reaction:', e);
+        addComment({ 
+          text: text, 
+          timestamp: 0, 
+          type: 'reaction',
+          emoji: emoji
+        });
+      }
+      hideReactionModal();
+    });
+    elements.reactionText.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        elements.submitReaction.click();
+      }
+    });
+    elements.exportCSV.addEventListener('click', () => {
+      if (!state.videoLoaded || elements.commentsList.children.length === 0) {
+        showError('No comments to export');
+        return;
+      }
+      exportAsCSV();
+    });
+    elements.exportText.addEventListener('click', () => {
+      if (!state.videoLoaded || elements.commentsList.children.length === 0) {
+        showError('No comments to export');
+        return;
+      }
+      exportAsText();
+    });
+    elements.exportPDF.addEventListener('click', () => {
+      if (!state.videoLoaded || elements.commentsList.children.length === 0) {
+        showError('No comments to export');
+        return;
+      }
+      exportAsPDF();
+    });
+    elements.exportHTML.addEventListener('click', () => {
+      if (!state.videoLoaded || elements.commentsList.children.length === 0) {
+        showError('No comments to export');
+        return;
+      }
+      exportAsHTML();
+    });
+    setInterval(updateTimeline, 1000);
+    document.addEventListener('DOMContentLoaded', () => {
+      switchVideoSource('youtube');
+      const urlParams = new URLSearchParams(window.location.search);
+      const videoId = urlParams.get('v');
+      const provider = urlParams.get('provider');
+      if (provider && Object.keys(VIDEO_PATTERNS).includes(provider)) {
+        state.currentProvider = provider;
+        switchVideoSource(provider);
+      }
+      if (videoId) {
+        elements.videoLink.value = videoId.includes('://') ? videoId : (state.currentProvider === 'youtube' ? `https://youtu.be/${videoId}` : videoId);
+        elements.loadVideoBtn.click();
+      }
+    });
+  </script>
+</body>
+</html>
