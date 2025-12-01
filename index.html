@@ -1,1968 +1,504 @@
+
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Video Reactions & Comments Application" />
-  <title>Video Reactions & Comments</title>
-  <style>
-    :root {
-      --primary-color: #007bff;
-      --primary-hover: #0056b3;
-      --success-color: #28a745;
-      --success-hover: #1e7e34;
-      --error-color: #dc3545;
-      --background-color: #f0f2f5;
-      --text-color: #333;
-      --border-color: #ccc;
-      --shadow-color: rgba(0, 0, 0, 0.1);
-    }
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      line-height: 1.6;
-      background: var(--background-color);
-      color: var(--text-color);
-      padding: 20px;
-    }
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
-    }
-    h1 {
-      text-align: center;
-      margin-bottom: 30px;
-      font-size: 2.5rem;
-      color: var(--text-color);
-    }
-    /* Input Section */
-    .input-section {
-      text-align: center;
-      margin-bottom: 30px;
-      display: flex;
-      justify-content: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    .input-group {
-      flex: 1;
-      max-width: 600px;
-      display: flex;
-      gap: 10px;
-    }
-    .input-field {
-      flex: 1;
-      padding: 12px;
-      font-size: 16px;
-      border: 2px solid var(--border-color);
-      border-radius: 8px;
-      transition: border-color 0.3s;
-    }
-    .input-field:focus {
-      outline: none;
-      border-color: var(--primary-color);
-    }
-    .btn {
-      padding: 12px 24px;
-      font-size: 16px;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      font-weight: 600;
-      white-space: nowrap;
-    }
-    .btn-primary {
-      background-color: var(--primary-color);
-      color: white;
-    }
-    .btn-primary:hover {
-      background-color: var(--primary-hover);
-      transform: translateY(-1px);
-    }
-    .btn-success {
-      background-color: var(--success-color);
-      color: white;
-    }
-    .btn-success:hover {
-      background-color: var(--success-hover);
-      transform: translateY(-1px);
-    }
-    /* Video Container */
-    .video-container {
-      display: flex;
-      justify-content: center;
-      margin-bottom: 30px;
-      position: relative;
-      background: #000;
-      border-radius: 12px;
-      overflow: hidden;
-      box-shadow: 0 4px 6px var(--shadow-color);
-    }
-    /* Reaction Buttons */
-    .reaction-buttons {
-      text-align: center;
-      margin: 20px 0;
-      padding: 15px;
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 2px 4px var(--shadow-color);
-    }
-    .reaction-buttons span {
-      font-size: 18px;
-      margin-right: 15px;
-      font-weight: 600;
-    }
-    .emoji-btn {
-      background: transparent;
-      border: none;
-      font-size: 24px;
-      cursor: pointer;
-      transition: transform 0.2s;
-      margin: 0 8px;
-      padding: 5px;
-    }
-    .emoji-btn:hover {
-      transform: scale(1.2);
-    }
-    /* Comment Section */
-    .comment-input-section {
-      margin-bottom: 30px;
-    }
-    .comment-textarea {
-      width: 100%;
-      height: 100px;
-      padding: 15px;
-      font-size: 16px;
-      border: 2px solid var(--border-color);
-      border-radius: 8px;
-      resize: vertical;
-      margin-bottom: 10px;
-      transition: border-color 0.3s;
-    }
-    .comment-textarea:focus {
-      outline: none;
-      border-color: var(--primary-color);
-    }
-    .comments-section {
-      background: white;
-      padding: 20px;
-      border-radius: 12px;
-      box-shadow: 0 2px 4px var(--shadow-color);
-    }
-    .comments-section h2 {
-      text-align: center;
-      margin-bottom: 20px;
-      color: var(--text-color);
-    }
-    .comment {
-      display: flex;
-      align-items: flex-start;
-      padding: 15px;
-      border-bottom: 1px solid var(--border-color);
-      transition: background-color 0.3s;
-    }
-    .comment:hover {
-      background-color: #f8f9fa;
-    }
-    .comment:last-child {
-      border-bottom: none;
-    }
-    .timestamp {
-      font-size: 14px;
-      color: var(--primary-color);
-      margin-right: 15px;
-      cursor: pointer;
-      min-width: 60px;
-      font-weight: 600;
-      padding: 5px 10px;
-      border-radius: 4px;
-      background: #e7f1ff;
-      transition: background-color 0.3s;
-    }
-    .timestamp:hover {
-      background-color: #d0e3ff;
-    }
-    .comment-text {
-      flex: 1;
-      font-size: 16px;
-      word-break: break-word;
-      line-height: 1.5;
-    }
-    .reaction-emoji {
-      margin-right: 8px;
-      font-size: 20px;
-    }
-    .error-message {
-      color: var(--error-color);
-      text-align: center;
-      margin: 10px 0;
-      padding: 10px;
-      border-radius: 8px;
-      background-color: #ffe6e6;
-      display: none;
-    }
-    /* Responsive Design */
-    @media (max-width: 768px) {
-      .input-group {
-        flex-direction: column;
-      }
-      .btn {
-        width: 100%;
-      }
-      .video-container {
-        margin: 0 -20px;
-        border-radius: 0;
-      }
-    }
-    /* Loading Spinner */
-    .spinner {
-      display: none;
-      width: 40px;
-      height: 40px;
-      margin: 20px auto;
-      border: 4px solid #f3f3f3;
-      border-top: 4px solid var(--primary-color);
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-    /* Timeline Styles */
-    .timeline-container {
-      margin: 20px 0;
-      padding: 20px;
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 2px 4px var(--shadow-color);
-      display: none;
-    }
-    .timeline {
-      position: relative;
-      height: 60px;
-      background: #f8f9fa;
-      border-radius: 8px;
-      margin: 10px 0;
-    }
-    .timeline-progress {
-      position: absolute;
-      height: 100%;
-      background: #e7f1ff;
-      width: 0;
-      border-radius: 8px;
-      transition: width 0.3s;
-    }
-    .timeline-markers {
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-    }
-    .timeline-marker {
-      position: absolute;
-      width: 20px;
-      height: 20px;
-      margin-left: -10px;
-      border-radius: 50%;
-      background: var(--primary-color);
-      cursor: pointer;
-      transition: transform 0.2s;
-      z-index: 1;
-    }
-    .timeline-marker:hover {
-      transform: scale(1.2);
-    }
-    .timeline-marker[data-type="reaction"] {
-      background: #ffd700;
-    }
-    .timeline-marker[data-type="comment"] {
-      background: var(--success-color);
-    }
-    .timeline-tooltip {
-      position: absolute;
-      bottom: 100%;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0, 0, 0, 0.8);
-      color: white;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 12px;
-      white-space: nowrap;
-      display: none;
-    }
-    .timeline-marker:hover .timeline-tooltip {
-      display: block;
-    }
-    /* Stats Panel */
-    .stats-panel {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 15px;
-      margin: 20px 0;
-      padding: 20px;
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 2px 4px var(--shadow-color);
-      display: none;
-    }
-    .stat-card {
-      padding: 15px;
-      text-align: center;
-      background: #f8f9fa;
-      border-radius: 8px;
-      transition: transform 0.2s;
-    }
-    .stat-card:hover {
-      transform: translateY(-2px);
-    }
-    .stat-value {
-      font-size: 24px;
-      font-weight: bold;
-      color: var(--primary-color);
-    }
-    .stat-label {
-      font-size: 14px;
-      color: #666;
-      margin-top: 5px;
-    }
-    /* Reaction Summary */
-    .reaction-summary {
-      display: flex;
-      justify-content: center;
-      gap: 20px;
-      flex-wrap: wrap;
-      margin: 20px 0;
-      padding: 15px;
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 2px 4px var(--shadow-color);
-      display: none;
-    }
-    .reaction-stat {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-    .reaction-count {
-      font-weight: bold;
-      color: var(--primary-color);
-    }
-    /* Export Section */
-    .export-section {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 10px;
-      margin: 20px 0;
-      padding: 15px;
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 2px 4px var(--shadow-color);
-      display: none;
-    }
-    .export-section h3 {
-      width: 100%;
-      text-align: center;
-      margin-bottom: 15px;
-    }
-    .export-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 10px 15px;
-      background: #f8f9fa;
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      cursor: pointer;
-      transition: all 0.2s;
-      font-weight: 500;
-      gap: 5px;
-    }
-    .export-btn:hover {
-      background: #e9ecef;
-      border-color: #adb5bd;
-      transform: translateY(-2px);
-    }
-    .export-btn i {
-      font-size: 18px;
-    }
-    /* Modal Styles */
-    .modal-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.7);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      z-index: 1000;
-      display: none;
-    }
-    .modal {
-      background: white;
-      border-radius: 10px;
-      max-width: 500px;
-      width: 90%;
-      max-height: 80vh;
-      overflow-y: auto;
-      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-      padding: 20px;
-    }
-    .modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 15px;
-      padding-bottom: 15px;
-      border-bottom: 1px solid var(--border-color);
-    }
-    .modal-title {
-      font-size: 20px;
-      font-weight: 600;
-    }
-    .modal-close {
-      background: transparent;
-      border: none;
-      font-size: 24px;
-      cursor: pointer;
-      color: #666;
-      transition: color 0.2s;
-    }
-    .modal-close:hover {
-      color: var(--error-color);
-    }
-    .modal-content {
-      margin-bottom: 20px;
-    }
-    .modal-footer {
-      display: flex;
-      justify-content: flex-end;
-      gap: 10px;
-      padding-top: 15px;
-      border-top: 1px solid var(--border-color);
-    }
-    /* Reaction Input Modal */
-    .reaction-input {
-      width: 100%;
-      padding: 10px;
-      margin-bottom: 15px;
-      border: 1px solid var(--border-color);
-      border-radius: 5px;
-      font-size: 16px;
-    }
-    /* Animations */
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    .fade-in {
-      animation: fadeIn 0.3s ease-out;
-    }
-    /* New styles for video source selection */
-    .source-selector {
-      display: flex;
-      justify-content: center;
-      gap: 10px;
-      margin-bottom: 20px;
-      flex-wrap: wrap;
-    }
-    .source-btn {
-      background-color: #f8f9fa;
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      padding: 8px 16px;
-      cursor: pointer;
-      transition: all 0.2s;
-      margin-bottom: 5px;
-    }
-    .source-btn.active {
-      background-color: var(--primary-color);
-      color: white;
-      border-color: var(--primary-color);
-    }
-    .source-btn:hover:not(.active) {
-      background-color: #e9ecef;
-    }
-    /* File Upload Form */
-    .file-upload-container {
-      display: none;
-      margin-bottom: 20px;
-    }
-    .file-upload-wrapper {
-      position: relative;
-      width: 100%;
-      height: 100px;
-      border: 2px dashed var(--border-color);
-      border-radius: 10px;
-      background-color: #f8f9fa;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-      overflow: hidden;
-      margin-bottom: 10px;
-      transition: all 0.3s;
-    }
-    .file-upload-wrapper:hover {
-      background-color: #e9ecef;
-      border-color: var(--primary-color);
-    }
-    .file-upload-wrapper.drag-over {
-      background-color: #e7f1ff;
-      border-color: var(--primary-color);
-    }
-    .file-upload-input {
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      top: 0;
-      left: 0;
-      opacity: 0;
-      cursor: pointer;
-    }
-    .upload-icon {
-      font-size: 32px;
-      margin-bottom: 10px;
-      color: var(--primary-color);
-    }
-    .upload-text {
-      font-size: 16px;
-      color: #666;
-    }
-    .upload-hint {
-      font-size: 12px;
-      color: #999;
-      margin-top: 5px;
-    }
-    .uploaded-file-info {
-      display: none;
-      padding: 10px;
-      background-color: #e7f1ff;
-      border-radius: 6px;
-      margin-top: 10px;
-    }
-    .file-name {
-      font-weight: 600;
-      color: var(--primary-color);
-    }
-    .file-size {
-      font-size: 12px;
-      color: #666;
-    }
-    /* Video URL Input Fields */
-    .video-url-container {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .video-platform-label {
-      font-weight: 600;
-      margin-bottom: 5px;
-    }
-    .provider-hint {
-      font-size: 12px;
-      color: #666;
-      margin-top: 5px;
-    }
-    /* Provider Logo Styles */
-    .provider-logo {
-      width: 16px;
-      height: 16px;
-      margin-right: 4px;
-      vertical-align: middle;
-    }
-  </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="ReactVid - Add timestamped reactions and comments to videos from YouTube, TikTok, Vimeo and more">
+  <title>ReactVid - Video Reactions & Comments</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Styles -->
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="container">
-    <h1>Video Reactions & Comments</h1>
-    <div class="error-message" id="errorMessage"></div>
-    <!-- Source Selector -->
-    <div class="source-selector">
-      <button class="source-btn active" data-source="youtube">YouTube</button>
-      <button class="source-btn" data-source="tiktok">TikTok</button>
-      <button class="source-btn" data-source="vimeo">Vimeo</button>
-      <button class="source-btn" data-source="dailymotion">Dailymotion</button>
-      <button class="source-btn" data-source="twitch">Twitch</button>
-      <button class="source-btn" data-source="facebook">Facebook</button>
-      <button class="source-btn" data-source="instagram">Instagram</button>
-      <button class="source-btn" data-source="odysee">Odysee</button>
-      <button class="source-btn" data-source="vk">VK</button>
-      <button class="source-btn" data-source="upload">Upload Video</button>
-    </div>
-    <!-- Video URL Input -->
-    <div class="input-section" id="videoUrlContainer">
-      <div class="input-group">
-        <input
-          type="text"
-          id="videoLink"
-          class="input-field"
-          placeholder="Enter video URL"
-          aria-label="Video URL"
-        />
-        <button id="loadVideoBtn" class="btn btn-primary">Load Video</button>
+  <!-- Animated Background -->
+  <div class="bg-effects">
+    <div class="bg-gradient"></div>
+    <div class="bg-grid"></div>
+    <div class="bg-glow bg-glow--1"></div>
+    <div class="bg-glow bg-glow--2"></div>
+    <div class="bg-glow bg-glow--3"></div>
+  </div>
+
+  <div class="app">
+    <!-- Hero Header -->
+    <header class="hero">
+      <div class="hero__badge">
+        <span class="hero__badge-dot"></span>
+        <span>Free & Open Source</span>
       </div>
-      <div class="provider-hint" id="providerHint">
-        Example: https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID
+      
+      <h1 class="hero__title">
+        <span class="hero__title-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+        </span>
+        <span class="hero__title-text">
+          React<span class="hero__title-accent">Vid</span>
+        </span>
+      </h1>
+      
+      <p class="hero__subtitle">
+        Add <span class="highlight">timestamped reactions</span> and <span class="highlight">comments</span> to any video.
+        <br>Paste any link — we auto-detect the platform.
+      </p>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+      <!-- Video Input Section -->
+      <section class="card card--glass input-section">
+        <div class="input-main">
+          <div class="input-wrapper input-wrapper--large">
+            <div class="input-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            </div>
+            <input 
+              type="url" 
+              id="videoLink" 
+              class="input-field" 
+              placeholder="Paste any video URL (YouTube, TikTok, Vimeo...)"
+              autocomplete="off"
+              spellcheck="false"
+            >
+            <button id="pasteBtn" class="input-action" title="Paste from clipboard">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+            </button>
+          </div>
+          
+          <div class="input-actions">
+            <button id="loadVideoBtn" class="btn btn--primary btn--lg">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              <span>Load Video</span>
+            </button>
+            <span class="input-divider">or</span>
+            <button id="uploadBtn" class="btn btn--secondary btn--lg">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span>Upload File</span>
+            </button>
+          </div>
+          <input type="file" id="videoUpload" accept="video/*" hidden>
+          
+          <!-- Detected Platform Badge -->
+          <div class="detected-platform" id="detectedPlatform" hidden>
+            <span class="detected-platform__icon" id="detectedIcon">▶</span>
+            <span class="detected-platform__name" id="detectedName">YouTube</span>
+            <span class="detected-platform__status">detected</span>
+          </div>
+        </div>
+        
+        <!-- Supported Platforms -->
+        <div class="supported-platforms">
+          <span class="supported-platforms__label">Supports:</span>
+          <div class="platform-icons">
+            <span class="platform-icon" title="YouTube">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+            </span>
+            <span class="platform-icon" title="TikTok">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg>
+            </span>
+            <span class="platform-icon" title="Vimeo">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.977 6.416c-.105 2.338-1.739 5.543-4.894 9.609-3.268 4.247-6.026 6.37-8.29 6.37-1.409 0-2.578-1.294-3.553-3.881L5.322 11.4C4.603 8.816 3.834 7.522 3.01 7.522c-.179 0-.806.378-1.881 1.132L0 7.197a315.065 315.065 0 0 0 3.501-3.128C5.08 2.701 6.266 1.984 7.055 1.91c1.867-.18 3.016 1.1 3.447 3.838.465 2.953.789 4.789.971 5.507.539 2.45 1.131 3.674 1.776 3.674.502 0 1.256-.796 2.265-2.385 1.004-1.589 1.54-2.797 1.612-3.628.144-1.371-.395-2.061-1.614-2.061-.574 0-1.167.121-1.777.391 1.186-3.868 3.434-5.757 6.762-5.637 2.473.06 3.628 1.664 3.493 4.797l-.013.01z"/></svg>
+            </span>
+            <span class="platform-icon" title="Dailymotion">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.996 2.333v5.479c-.554-.208-1.39-.349-2.078-.349C6.22 7.463 3 10.87 3 15.723 3 19.934 5.61 22 9.472 22c2.217 0 3.986-.554 5.35-1.595V22H21V2.333h-8.004zm0 14.074c-.763.9-1.735 1.353-2.844 1.353-1.597 0-2.636-.971-2.636-2.775 0-2.186 1.317-3.713 3.329-3.713.935 0 1.665.208 2.151.554v4.581z"/></svg>
+            </span>
+            <span class="platform-icon" title="Twitch">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/></svg>
+            </span>
+            <span class="platform-icon" title="Facebook">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+            </span>
+            <span class="platform-icon" title="Instagram">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C8.74 0 8.333.015 7.053.072 5.775.132 4.905.333 4.14.63c-.789.306-1.459.717-2.126 1.384S.935 3.35.63 4.14C.333 4.905.131 5.775.072 7.053.012 8.333 0 8.74 0 12s.015 3.667.072 4.947c.06 1.277.261 2.148.558 2.913.306.788.717 1.459 1.384 2.126.667.666 1.336 1.079 2.126 1.384.766.296 1.636.499 2.913.558C8.333 23.988 8.74 24 12 24s3.667-.015 4.947-.072c1.277-.06 2.148-.262 2.913-.558.788-.306 1.459-.718 2.126-1.384.666-.667 1.079-1.335 1.384-2.126.296-.765.499-1.636.558-2.913.06-1.28.072-1.687.072-4.947s-.015-3.667-.072-4.947c-.06-1.277-.262-2.149-.558-2.913-.306-.789-.718-1.459-1.384-2.126C21.319 1.347 20.651.935 19.86.63c-.765-.297-1.636-.499-2.913-.558C15.667.012 15.26 0 12 0zm0 2.16c3.203 0 3.585.016 4.85.071 1.17.055 1.805.249 2.227.415.562.217.96.477 1.382.896.419.42.679.819.896 1.381.164.422.36 1.057.413 2.227.057 1.266.07 1.646.07 4.85s-.015 3.585-.074 4.85c-.061 1.17-.256 1.805-.421 2.227-.224.562-.479.96-.899 1.382-.419.419-.824.679-1.38.896-.42.164-1.065.36-2.235.413-1.274.057-1.649.07-4.859.07-3.211 0-3.586-.015-4.859-.074-1.171-.061-1.816-.256-2.236-.421-.569-.224-.96-.479-1.379-.899-.421-.419-.69-.824-.9-1.38-.165-.42-.359-1.065-.42-2.235-.045-1.26-.061-1.649-.061-4.844 0-3.196.016-3.586.061-4.861.061-1.17.255-1.814.42-2.234.21-.57.479-.96.9-1.381.419-.419.81-.689 1.379-.898.42-.166 1.051-.361 2.221-.421 1.275-.045 1.65-.06 4.859-.06l.045.03zm0 3.678c-3.405 0-6.162 2.76-6.162 6.162 0 3.405 2.76 6.162 6.162 6.162 3.405 0 6.162-2.76 6.162-6.162 0-3.405-2.757-6.162-6.162-6.162zM12 16c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4zm7.846-10.405c0 .795-.646 1.44-1.44 1.44-.795 0-1.44-.646-1.44-1.44 0-.794.646-1.439 1.44-1.439.793-.001 1.44.645 1.44 1.439z"/></svg>
+            </span>
+            <span class="platform-icon" title="Local File">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+            </span>
+          </div>
+        </div>
+        
+        <!-- Uploaded File Info -->
+        <div class="upload-info" id="uploadedFileInfo" hidden>
+          <div class="upload-info__icon">📹</div>
+          <div class="upload-info__details">
+            <span class="upload-info__name" id="uploadedFileName"></span>
+            <span class="upload-info__size" id="uploadedFileSize"></span>
+          </div>
+          <button class="upload-info__remove" id="removeFile" title="Remove file">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        <!-- Loading State -->
+        <div class="loading-state" id="loadingSpinner" hidden>
+          <div class="loading-spinner">
+            <div class="loading-spinner__ring"></div>
+            <div class="loading-spinner__ring"></div>
+            <div class="loading-spinner__ring"></div>
+          </div>
+          <p class="loading-text">Loading video...</p>
+        </div>
+      </section>
+
+      <!-- Features Section -->
+      <section class="features-section" id="featuresSection">
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="feature-card__icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <h3 class="feature-card__title">Timestamped Notes</h3>
+            <p class="feature-card__desc">Add comments at exact moments. Click any timestamp to jump right back.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-card__icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+            </div>
+            <h3 class="feature-card__title">Quick Reactions</h3>
+            <p class="feature-card__desc">Express yourself with emoji reactions. Track your emotional journey through any video.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-card__icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            </div>
+            <h3 class="feature-card__title">Transcription</h3>
+            <p class="feature-card__desc">Get text from videos with live speech-to-text or import existing transcripts.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-card__icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </div>
+            <h3 class="feature-card__title">Export Anywhere</h3>
+            <p class="feature-card__desc">Download your notes as PDF, CSV, JSON, SRT, or shareable HTML with embedded video.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Video Player Section -->
+      <section class="card card--dark video-section" id="videoPanel" hidden>
+        <div class="video-header">
+          <div class="video-title-wrapper">
+            <span class="video-platform" id="videoPlatform">YouTube</span>
+            <h3 class="video-title" id="videoTitleDisplay">Video Title</h3>
+          </div>
+          <button class="btn btn--ghost btn--sm" id="changeVideoBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+            <span>Change</span>
+          </button>
+        </div>
+        
+        <div class="video-container" id="videoContainer"></div>
+        
+        <!-- Reactions Bar -->
+        <div class="reactions-bar" id="reactionButtons">
+          <div class="reactions-bar__left">
+            <span class="reactions-bar__label">Add Reaction:</span>
+            <div class="current-time" id="currentTimeDisplay">0:00</div>
+          </div>
+          <div class="reactions-bar__buttons">
+            <button class="emoji-btn" data-emoji="👍" title="Like"><span>👍</span></button>
+            <button class="emoji-btn" data-emoji="❤️" title="Love"><span>❤️</span></button>
+            <button class="emoji-btn" data-emoji="😂" title="Haha"><span>😂</span></button>
+            <button class="emoji-btn" data-emoji="😮" title="Wow"><span>😮</span></button>
+            <button class="emoji-btn" data-emoji="😢" title="Sad"><span>😢</span></button>
+            <button class="emoji-btn" data-emoji="😡" title="Angry"><span>😡</span></button>
+            <button class="emoji-btn" data-emoji="🔥" title="Fire"><span>🔥</span></button>
+            <button class="emoji-btn" data-emoji="💡" title="Idea"><span>💡</span></button>
+            <button class="emoji-btn" data-emoji="🎯" title="On Point"><span>🎯</span></button>
+            <div class="reactions-bar__divider"></div>
+            <button class="btn btn--secondary btn--sm" id="transcribeBtn" title="Transcribe video">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/>
+                <line x1="8" y1="23" x2="16" y2="23"/>
+              </svg>
+              <span>Transcribe</span>
+            </button>
+            <button class="emoji-btn emoji-btn--add" id="addCommentBtn" title="Add Comment">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Timeline -->
+        <div class="timeline-section">
+          <div class="timeline" id="timeline">
+            <div class="timeline__track">
+              <div class="timeline__progress" id="timelineProgress"></div>
+            </div>
+            <div class="timeline__markers" id="timelineMarkers"></div>
+          </div>
+          <div class="timeline-labels">
+            <span id="timelineCurrent">0:00</span>
+            <span id="timelineDuration">0:00</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Stats Dashboard -->
+      <section class="stats-grid" id="statsPanel" hidden>
+        <div class="stat-card stat-card--comments">
+          <div class="stat-card__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <div class="stat-card__content">
+            <span class="stat-card__value" id="totalCommentsValue">0</span>
+            <span class="stat-card__label">Comments</span>
+          </div>
+        </div>
+        <div class="stat-card stat-card--reactions">
+          <div class="stat-card__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          </div>
+          <div class="stat-card__content">
+            <span class="stat-card__value" id="totalReactionsValue">0</span>
+            <span class="stat-card__label">Reactions</span>
+          </div>
+        </div>
+        <div class="stat-card stat-card--time">
+          <div class="stat-card__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <div class="stat-card__content">
+            <span class="stat-card__value" id="avgTimeValue">0:00</span>
+            <span class="stat-card__label">Avg Time</span>
+          </div>
+        </div>
+        <div class="stat-card stat-card--export">
+          <div class="stat-card__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </div>
+          <div class="stat-card__content">
+            <div class="export-dropdown">
+              <button class="export-dropdown__trigger" id="exportDropdownBtn">
+                <span>Export</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <div class="export-dropdown__menu" id="exportDropdownMenu">
+                <button class="export-dropdown__item" id="exportCSV">
+                  <span class="export-dropdown__icon">📊</span>
+                  <span>CSV Spreadsheet</span>
+                </button>
+                <button class="export-dropdown__item" id="exportText">
+                  <span class="export-dropdown__icon">📝</span>
+                  <span>Plain Text</span>
+                </button>
+                <button class="export-dropdown__item" id="exportPDF">
+                  <span class="export-dropdown__icon">📄</span>
+                  <span>PDF Document</span>
+                </button>
+                <button class="export-dropdown__item" id="exportHTML">
+                  <span class="export-dropdown__icon">🌐</span>
+                  <span>HTML + Video</span>
+                </button>
+                <button class="export-dropdown__item" id="exportJSON">
+                  <span class="export-dropdown__icon">{ }</span>
+                  <span>JSON Data</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Reaction Summary -->
+      <section class="card card--glass reaction-summary-section" id="reactionSummarySection" hidden>
+        <h3 class="section-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+          <span>Reaction Summary</span>
+        </h3>
+        <div class="reaction-summary" id="reactionSummary"></div>
+      </section>
+
+      <!-- Comments Section -->
+      <section class="card card--glass comments-section" id="commentsSection" hidden>
+        <div class="comments-header">
+          <h3 class="section-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+            <span>Comments & Reactions</span>
+          </h3>
+          <div class="comments-actions">
+            <button class="btn btn--ghost btn--sm" id="sortCommentsBtn" title="Sort by time">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="8" y2="18"/></svg>
+              <span>Sort</span>
+            </button>
+            <button class="btn btn--ghost btn--sm btn--danger" id="clearAllBtn" title="Clear all">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              <span>Clear</span>
+            </button>
+          </div>
+        </div>
+        
+        <div class="comments-list" id="commentsList" role="list"></div>
+        
+        <div class="comments-empty" id="commentsEmpty">
+          <div class="comments-empty__icon">💬</div>
+          <h4>No comments yet</h4>
+          <p>Click on a reaction emoji or the + button to add your first comment!</p>
+        </div>
+      </section>
+
+      <!-- Transcript Section -->
+      <section class="card card--glass transcript-section" id="transcriptSection" hidden>
+        <div class="transcript-header">
+          <h3 class="section-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <span>Transcript</span>
+            <span class="transcript-badge" id="transcriptCount">0</span>
+          </h3>
+          <div class="transcript-actions">
+            <button class="btn btn--ghost btn--sm" id="importTranscriptBtn" title="Import transcript">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span>Import</span>
+            </button>
+            <button class="btn btn--ghost btn--sm" id="copyTranscriptBtn" title="Copy all">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span>Copy</span>
+            </button>
+            <button class="btn btn--ghost btn--sm" id="exportTranscriptBtn" title="Export SRT">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>SRT</span>
+            </button>
+            <button class="btn btn--ghost btn--sm" id="addAllTranscriptBtn" title="Add all as comments">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>Add All</span>
+            </button>
+            <button class="btn btn--ghost btn--sm btn--danger" id="clearTranscriptBtn" title="Clear transcript">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </div>
+        </div>
+        
+        <p class="transcript-hint">💡 Click any line to add it as a comment • Click timestamp to jump to that moment</p>
+        
+        <div class="transcript-list" id="transcriptList"></div>
+        
+        <div class="transcript-empty" id="transcriptEmpty">
+          <div class="transcript-empty__icon">📝</div>
+          <h4>No transcript yet</h4>
+          <p>Use the <strong>Transcribe</strong> button for live speech-to-text (local videos), or <strong>Import</strong> an existing transcript.</p>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p class="footer__text">
+        <span class="footer__logo">React<span>Vid</span></span>
+        — Made with ❤️ for video enthusiasts
+      </p>
+    </footer>
+  </div>
+
+  <!-- Reaction Modal -->
+  <div class="modal-overlay" id="reactionModal" hidden>
+    <div class="modal" role="dialog" aria-labelledby="modalTitle" aria-modal="true">
+      <div class="modal__header">
+        <div class="modal__title-wrapper">
+          <span class="modal__emoji" id="selectedEmoji">👍</span>
+          <h3 class="modal__title" id="modalTitle">Add Reaction</h3>
+        </div>
+        <button class="modal__close" id="closeReactionModal" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
-    </div>
-    <!-- File Upload Container -->
-    <div class="file-upload-container" id="fileUploadContainer">
-      <div class="file-upload-wrapper" id="fileUploadWrapper">
-        <input type="file" id="videoUpload" class="file-upload-input" accept="video/*" />
-        <div class="upload-icon">📁</div>
-        <div class="upload-text">Click or drop video file here</div>
-        <div class="upload-hint">Supported formats: MP4, WebM, OGG (max 100MB)</div>
+      <div class="modal__body">
+        <div class="modal__timestamp">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span>at <strong id="modalTimestamp">0:00</strong></span>
+        </div>
+        <div class="modal__input-wrapper">
+          <textarea 
+            id="reactionText" 
+            class="modal__input" 
+            placeholder="Share your thoughts..."
+            maxlength="500"
+            rows="3"
+          ></textarea>
+          <span class="modal__char-count"><span id="charCount">0</span>/500</span>
+        </div>
+        <input type="hidden" id="selectedEmojiInput">
       </div>
-      <div class="uploaded-file-info" id="uploadedFileInfo">
-        <div class="file-name" id="uploadedFileName"></div>
-        <div class="file-size" id="uploadedFileSize"></div>
+      <div class="modal__footer">
+        <button class="btn btn--ghost" id="cancelReaction">Cancel</button>
+        <button class="btn btn--primary" id="submitReaction">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          <span>Add Reaction</span>
+        </button>
       </div>
-      <button id="uploadVideoBtn" class="btn btn-primary" style="margin-top: 10px; width: 100%;">Use Uploaded Video</button>
-    </div>
-    <div class="spinner" id="loadingSpinner"></div>
-    <div class="video-container" id="videoContainer"></div>
-    <div class="reaction-buttons" id="reactionButtons" style="display: none;">
-      <span>Quick Reactions:</span>
-      <button class="emoji-btn" data-emoji="👍" aria-label="thumbs up">👍</button>
-      <button class="emoji-btn" data-emoji="❤️" aria-label="heart">❤️</button>
-      <button class="emoji-btn" data-emoji="😂" aria-label="laughing">😂</button>
-      <button class="emoji-btn" data-emoji="😮" aria-label="wow">😮</button>
-      <button class="emoji-btn" data-emoji="😢" aria-label="sad">😢</button>
-      <button class="emoji-btn" data-emoji="😡" aria-label="angry">😡</button>
-      <button class="emoji-btn" data-emoji="💡" aria-label="idea">💡</button>
-    </div>
-    <!-- Timeline -->
-    <div class="timeline-container" id="timelineContainer">
-      <h2>Activity Timeline</h2>
-      <div class="timeline">
-        <div class="timeline-progress" id="timelineProgress"></div>
-        <div class="timeline-markers" id="timelineMarkers"></div>
-      </div>
-    </div>
-    <!-- Stats Panel -->
-    <div class="stats-panel" id="statsPanel">
-      <div class="stat-card">
-        <div class="stat-value" id="totalCommentsValue">0</div>
-        <div class="stat-label">Total Comments</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value" id="totalReactionsValue">0</div>
-        <div class="stat-label">Total Reactions</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value" id="avgTimeValue">0:00</div>
-        <div class="stat-label">Average Activity Time</div>
-      </div>
-    </div>
-    <!-- Reaction Summary -->
-    <div class="reaction-summary" id="reactionSummary"></div>
-    <div class="comments-section">
-      <h2>Comments</h2>
-      <div id="commentsList"></div>
-    </div>
-    <!-- Export Section -->
-    <div class="export-section" id="exportSection">
-      <h3>Export Comments</h3>
-      <button id="exportCSV" class="export-btn">
-        <i>📊</i> CSV
-      </button>
-      <button id="exportText" class="export-btn">
-        <i>📝</i> Text
-      </button>
-      <button id="exportPDF" class="export-btn">
-        <i>📄</i> PDF
-      </button>
-      <button id="exportHTML" class="export-btn">
-        <i>🌐</i> HTML with Video
-      </button>
     </div>
   </div>
-  <!-- Reaction Text Modal -->
-  <div class="modal-overlay" id="reactionModal">
-    <div class="modal">
-      <div class="modal-header">
-        <span class="modal-title">Add Reaction <span id="selectedEmoji"></span></span>
-        <button class="modal-close" id="closeReactionModal">&times;</button>
+
+  <!-- Comment Modal -->
+  <div class="modal-overlay" id="commentModal" hidden>
+    <div class="modal" role="dialog" aria-labelledby="commentModalTitle" aria-modal="true">
+      <div class="modal__header">
+        <div class="modal__title-wrapper">
+          <span class="modal__emoji">💬</span>
+          <h3 class="modal__title" id="commentModalTitle">Add Comment</h3>
+        </div>
+        <button class="modal__close" id="closeCommentModal" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
-      <div class="modal-content">
-        <p>Please add your thoughts along with this reaction:</p>
-        <input type="text" id="reactionText" class="reaction-input" placeholder="What do you think..." />
-        <input type="hidden" id="selectedEmojiInput" />
+      <div class="modal__body">
+        <div class="modal__timestamp">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span>at <strong id="commentModalTimestamp">0:00</strong></span>
+        </div>
+        <div class="modal__input-wrapper">
+          <textarea 
+            id="commentText" 
+            class="modal__input" 
+            placeholder="Write your comment..."
+            maxlength="1000"
+            rows="4"
+          ></textarea>
+          <span class="modal__char-count"><span id="commentCharCount">0</span>/1000</span>
+        </div>
       </div>
-      <div class="modal-footer">
-        <button class="btn btn-primary" id="submitReaction">Add Reaction</button>
+      <div class="modal__footer">
+        <button class="btn btn--ghost" id="cancelComment">Cancel</button>
+        <button class="btn btn--primary" id="submitComment">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          <span>Add Comment</span>
+        </button>
       </div>
     </div>
   </div>
-  <!-- Script for PDF generation -->
+
+  <!-- Confirm Modal -->
+  <div class="modal-overlay" id="confirmModal" hidden>
+    <div class="modal modal--sm" role="alertdialog" aria-labelledby="confirmTitle" aria-modal="true">
+      <div class="modal__header">
+        <h3 class="modal__title" id="confirmTitle">Confirm Action</h3>
+      </div>
+      <div class="modal__body">
+        <p id="confirmMessage">Are you sure you want to delete all comments?</p>
+      </div>
+      <div class="modal__footer">
+        <button class="btn btn--ghost" id="confirmCancel">Cancel</button>
+        <button class="btn btn--danger" id="confirmOk">Delete All</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- External Libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <!-- Script for ZIP file creation -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <script>
-    // State management
-    const state = {
-      player: null,
-      videoLoaded: false,
-      currentVideoId: null,
-      videoTitle: 'Video', // Default title
-      currentProvider: 'youtube', // Default provider
-      uploadedVideo: null, // For uploaded videos
-      videoElement: null, // For HTML5 video player
-    };
-    // Constants
-    const YOUTUBE_API_URL = 'https://www.youtube.com/iframe_api';
-    // Video provider patterns
-    const VIDEO_PATTERNS = {
-      youtube: [
-        /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i,
-        /^[a-zA-Z0-9_-]{11}$/
-      ],
-      tiktok: [
-        /tiktok\.com\/@[^\/]+\/video\/(\d+)/i,
-        /vm\.tiktok\.com\/([^\/]+)/i
-      ],
-      vimeo: [
-        /vimeo\.com\/([0-9]+)/i,
-        /vimeo\.com\/channels\/[^\/]+\/([0-9]+)/i,
-        /vimeo\.com\/groups\/[^\/]+\/videos\/([0-9]+)/i
-      ],
-      dailymotion: [
-        /dailymotion\.com\/video\/([a-zA-Z0-9]+)/i,
-        /dai\.ly\/([a-zA-Z0-9]+)/i
-      ],
-      twitch: [
-        /twitch\.tv\/videos\/(\d+)/i,
-        /twitch\.tv\/[^\/]+\/clip\/([a-zA-Z0-9-]+)/i,
-        /clips\.twitch\.tv\/([a-zA-Z0-9-]+)/i
-      ],
-      facebook: [
-        /facebook\.com\/[^\/]+\/videos\/(\d+)/i,
-        /facebook\.com\/watch\/\?v=(\d+)/i,
-        /fb\.watch\/([^\/]+)/i
-      ],
-      instagram: [
-        /instagram\.com\/p\/([a-zA-Z0-9_-]+)/i,
-        /instagram\.com\/tv\/([a-zA-Z0-9_-]+)/i,
-        /instagram\.com\/reel\/([a-zA-Z0-9_-]+)/i
-      ],
-      odysee: [
-        /odysee\.com\/@[^:]+:([a-zA-Z0-9]{4})/i,
-        /odysee\.com\/\$\/[^\/]+\/([a-zA-Z0-9]{4})/i
-      ],
-      vk: [
-        /vk\.com\/video-?[0-9]+_([0-9]+)/i,
-        /vk\.com\/video\?z=video-?[0-9]+_([0-9]+)/i
-      ]
-    };
-    // DOM Elements
-    const elements = {
-      videoLink: document.getElementById('videoLink'),
-      loadVideoBtn: document.getElementById('loadVideoBtn'),
-      videoContainer: document.getElementById('videoContainer'),
-      reactionButtons: document.getElementById('reactionButtons'),
-      commentsList: document.getElementById('commentsList'),
-      errorMessage: document.getElementById('errorMessage'),
-      loadingSpinner: document.getElementById('loadingSpinner'),
-      exportSection: document.getElementById('exportSection'),
-      reactionModal: document.getElementById('reactionModal'),
-      selectedEmoji: document.getElementById('selectedEmoji'),
-      selectedEmojiInput: document.getElementById('selectedEmojiInput'),
-      reactionText: document.getElementById('reactionText'),
-      closeReactionModal: document.getElementById('closeReactionModal'),
-      submitReaction: document.getElementById('submitReaction'),
-      exportCSV: document.getElementById('exportCSV'),
-      exportText: document.getElementById('exportText'),
-      exportPDF: document.getElementById('exportPDF'),
-      exportHTML: document.getElementById('exportHTML'),
-      sourceButtons: document.querySelectorAll('.source-btn'),
-      providerHint: document.getElementById('providerHint'),
-      videoUrlContainer: document.getElementById('videoUrlContainer'),
-      fileUploadContainer: document.getElementById('fileUploadContainer'),
-      fileUploadWrapper: document.getElementById('fileUploadWrapper'),
-      videoUpload: document.getElementById('videoUpload'),
-      uploadedFileInfo: document.getElementById('uploadedFileInfo'),
-      uploadedFileName: document.getElementById('uploadedFileName'),
-      uploadedFileSize: document.getElementById('uploadedFileSize'),
-      uploadVideoBtn: document.getElementById('uploadVideoBtn')
-    };
-    // Load YouTube IFrame API
-    function loadYouTubeAPI() {
-      if (window.YT) return Promise.resolve();
-      return new Promise((resolve, reject) => {
-        const tag = document.createElement('script');
-        tag.src = YOUTUBE_API_URL;
-        tag.onload = resolve;
-        tag.onerror = () => reject(new Error('Failed to load YouTube API'));
-        document.head.appendChild(tag);
-        window.onYouTubeIframeAPIReady = resolve;
-      });
-    }
-    // Extract video ID from URL based on provider
-    function extractVideoID(url, provider) {
-      if (!url) return null;
-      const patterns = VIDEO_PATTERNS[provider] || [];
-      for (const pattern of patterns) {
-        const match = url.match(pattern);
-        if (match && match[1]) {
-          return match[1];
-        }
-      }
-      return null;
-    }
-    // Show error message
-    function showError(message, duration = 5000) {
-      elements.errorMessage.textContent = message;
-      elements.errorMessage.style.display = 'block';
-      elements.errorMessage.classList.add('fade-in');
-      setTimeout(() => {
-        elements.errorMessage.style.display = 'none';
-        elements.errorMessage.classList.remove('fade-in');
-      }, duration);
-    }
-    // Toggle loading spinner
-    function toggleLoading(show) {
-      elements.loadingSpinner.style.display = show ? 'block' : 'none';
-      elements.loadVideoBtn.disabled = show;
-      if (elements.uploadVideoBtn) {
-        elements.uploadVideoBtn.disabled = show;
-      }
-    }
-    // Initialize YouTube player
-    async function initializeYouTubePlayer(videoId) {
-      try {
-        await loadYouTubeAPI();
-        elements.videoContainer.innerHTML = '<div id="player"></div>';
-        state.player = new YT.Player('player', {
-          height: '390',
-          width: '640',
-          videoId: videoId,
-          playerVars: {
-            rel: 0,
-            modestbranding: 1,
-            playsinline: 1
-          },
-          events: {
-            onReady: onPlayerReady,
-            onError: onPlayerError,
-            onStateChange: onPlayerStateChange
-          }
-        });
-        state.videoLoaded = true;
-        state.currentVideoId = videoId;
-        elements.reactionButtons.style.display = 'block';
-        elements.exportSection.style.display = 'flex';
-        showFeaturePanels(true);
-        updateUI();
-      } catch (error) {
-        showError('Error loading YouTube video: ' + error.message);
-        throw error;
-      }
-    }
-    // Initialize TikTok player
-    function initializeTikTokPlayer(videoId) {
-      elements.videoContainer.innerHTML = `
-                <blockquote class="tiktok-embed" 
-                    cite="https://www.tiktok.com/@/video/${videoId}" 
-                    data-video-id="${videoId}" 
-                    style="max-width: 640px; min-width: 300px; width: 100%; height: 390px;">
-                    <section></section>
-                </blockquote>
-                <script async src="https://www.tiktok.com/embed.js"><\/script>
-            `;
-      state.player = {
-        getCurrentTime: () => 0,
-        getDuration: () => 60,
-        playVideo: () => console.log("TikTok play requested (not supported via API)"),
-        seekTo: (seconds) => console.log("TikTok seek requested (not supported via API)")
-      };
-      state.videoLoaded = true;
-      state.currentVideoId = videoId;
-      state.videoTitle = 'TikTok Video';
-      elements.reactionButtons.style.display = 'block';
-      elements.exportSection.style.display = 'flex';
-      showFeaturePanels(true);
-      updateUI();
-    }
-    // Initialize Vimeo player
-    function initializeVimeoPlayer(videoId) {
-      elements.videoContainer.innerHTML = `
-                <iframe id="player" 
-                    src="https://player.vimeo.com/video/${videoId}" 
-                    width="640" 
-                    height="390" 
-                    frameborder="0" 
-                    allow="autoplay; fullscreen; picture-in-picture" 
-                    allowfullscreen>
-                </iframe>
-                <script src="https://player.vimeo.com/api/player.js"><\/script>
-            `;
-      state.player = {
-        getCurrentTime: () => 0,
-        getDuration: () => 300,
-        playVideo: () => {
-          try {
-            document.getElementById('player').contentWindow.postMessage({ method: 'play' }, '*');
-          } catch (e) {
-            console.error('Could not send play command to Vimeo player', e);
-          }
-        },
-        seekTo: (seconds) => {
-          try {
-            document.getElementById('player').contentWindow.postMessage({ method: 'setCurrentTime', value: seconds }, '*');
-          } catch (e) {
-            console.error('Could not send seek command to Vimeo player', e);
-          }
-        }
-      };
-      state.videoLoaded = true;
-      state.currentVideoId = videoId;
-      state.videoTitle = 'Vimeo Video';
-      elements.reactionButtons.style.display = 'block';
-      elements.exportSection.style.display = 'flex';
-      showFeaturePanels(true);
-      updateUI();
-    }
-    // Initialize Dailymotion player
-    function initializeDailymotionPlayer(videoId) {
-      elements.videoContainer.innerHTML = `
-                <iframe id="player" 
-                    frameborder="0" 
-                    width="640" 
-                    height="390" 
-                    src="https://www.dailymotion.com/embed/video/${videoId}" 
-                    allowfullscreen allow="autoplay">
-                </iframe>
-            `;
-      state.player = {
-        getCurrentTime: () => 0,
-        getDuration: () => 300,
-        playVideo: () => {
-          try {
-            document.getElementById('player').contentWindow.postMessage('play', '*');
-          } catch (e) {
-            console.error('Could not send play command to Dailymotion player', e);
-          }
-        },
-        seekTo: (seconds) => {
-          try {
-            document.getElementById('player').contentWindow.postMessage({ command: 'seek', parameters: [seconds] }, '*');
-          } catch (e) {
-            console.error('Could not send seek command to Dailymotion player', e);
-          }
-        }
-      };
-      state.videoLoaded = true;
-      state.currentVideoId = videoId;
-      state.videoTitle = 'Dailymotion Video';
-      elements.reactionButtons.style.display = 'block';
-      elements.exportSection.style.display = 'flex';
-      showFeaturePanels(true);
-      updateUI();
-    }
-    // Initialize Twitch player
-    function initializeTwitchPlayer(videoId) {
-      elements.videoContainer.innerHTML = `
-                <iframe id="player" 
-                    src="https://player.twitch.tv/?video=${videoId}&parent=${window.location.hostname}" 
-                    height="390" 
-                    width="640" 
-                    allowfullscreen>
-                </iframe>
-            `;
-      state.player = {
-        getCurrentTime: () => 0,
-        getDuration: () => 3600,
-        playVideo: () => console.log('Twitch play requested (not supported via simple iframe)'),
-        seekTo: (seconds) => console.log('Twitch seek requested (not supported via simple iframe)')
-      };
-      state.videoLoaded = true;
-      state.currentVideoId = videoId;
-      state.videoTitle = 'Twitch Video';
-      elements.reactionButtons.style.display = 'block';
-      elements.exportSection.style.display = 'flex';
-      showFeaturePanels(true);
-      updateUI();
-    }
-    // Initialize Facebook player
-    function initializeFacebookPlayer(videoId) {
-      elements.videoContainer.innerHTML = `
-                <iframe id="player" 
-                    src="https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2Ffacebook%2Fvideos%2F${videoId}%2F&show_text=false" 
-                    width="640" 
-                    height="390" 
-                    style="border:none;overflow:hidden" 
-                    scrolling="no" 
-                    frameborder="0" 
-                    allowfullscreen="true" 
-                    allow="autoplay; clipboard-write; encrypted-media; picture-in-picture">
-                </iframe>
-            `;
-      state.player = {
-        getCurrentTime: () => 0,
-        getDuration: () => 300,
-        playVideo: () => console.log('Facebook play requested (not supported via iframe)'),
-        seekTo: (seconds) => console.log('Facebook seek requested (not supported via iframe)')
-      };
-      state.videoLoaded = true;
-      state.currentVideoId = videoId;
-      state.videoTitle = 'Facebook Video';
-      elements.reactionButtons.style.display = 'block';
-      elements.exportSection.style.display = 'flex';
-      showFeaturePanels(true);
-      updateUI();
-    }
-    // Initialize Instagram player
-    function initializeInstagramPlayer(videoId) {
-      elements.videoContainer.innerHTML = `
-                <iframe id="player" 
-                    src="https://www.instagram.com/p/${videoId}/embed/" 
-                    width="640" 
-                    height="520" 
-                    frameborder="0" 
-                    scrolling="no" 
-                    allowtransparency="true">
-                </iframe>
-            `;
-      state.player = {
-        getCurrentTime: () => 0,
-        getDuration: () => 60,
-        playVideo: () => console.log('Instagram play requested (not supported via iframe)'),
-        seekTo: (seconds) => console.log('Instagram seek requested (not supported via iframe)')
-      };
-      state.videoLoaded = true;
-      state.currentVideoId = videoId;
-      state.videoTitle = 'Instagram Video';
-      elements.reactionButtons.style.display = 'block';
-      elements.exportSection.style.display = 'flex';
-      showFeaturePanels(true);
-      updateUI();
-    }
-    // Initialize Odysee player
-    function initializeOdyseePlayer(videoId) {
-      elements.videoContainer.innerHTML = `
-                <iframe id="player" 
-                    width="640" 
-                    height="390" 
-                    src="https://odysee.com/$/embed/${videoId}" 
-                    allowfullscreen>
-                </iframe>
-            `;
-      state.player = {
-        getCurrentTime: () => 0,
-        getDuration: () => 600,
-        playVideo: () => {
-          try {
-            document.getElementById('player').contentWindow.postMessage(JSON.stringify({ type: 'play' }), '*');
-          } catch (e) {
-            console.error('Could not send play command to Odysee player', e);
-          }
-        },
-        seekTo: (seconds) => {
-          try {
-            document.getElementById('player').contentWindow.postMessage(JSON.stringify({ type: 'seek', time: seconds }), '*');
-          } catch (e) {
-            console.error('Could not send seek command to Odysee player', e);
-          }
-        }
-      };
-      state.videoLoaded = true;
-      state.currentVideoId = videoId;
-      state.videoTitle = 'Odysee Video';
-      elements.reactionButtons.style.display = 'block';
-      elements.exportSection.style.display = 'flex';
-      showFeaturePanels(true);
-      updateUI();
-    }
-    // Initialize VK player
-    function initializeVKPlayer(videoId) {
-      elements.videoContainer.innerHTML = `
-                <iframe id="player" 
-                    width="640" 
-                    height="390" 
-                    src="https://vk.com/video_ext.php?oid=-1&id=${videoId}&hd=2" 
-                    allow="autoplay; encrypted-media; fullscreen; picture-in-picture;" 
-                    frameborder="0" 
-                    allowfullscreen>
-                </iframe>
-            `;
-      state.player = {
-        getCurrentTime: () => 0,
-        getDuration: () => 600,
-        playVideo: () => {
-          try {
-            document.getElementById('player').contentWindow.postMessage('VKWebAppPlayVideo', '*');
-          } catch (e) {
-            console.error('Could not send play command to VK player', e);
-          }
-        },
-        seekTo: (seconds) => {
-          console.warn('Seeking not supported for VK videos');
-        }
-      };
-      state.videoLoaded = true;
-      state.currentVideoId = videoId;
-      state.videoTitle = 'VK Video';
-      elements.reactionButtons.style.display = 'block';
-      elements.exportSection.style.display = 'flex';
-      showFeaturePanels(true);
-      updateUI();
-    }
-    // Initialize HTML5 Video Player for uploaded videos
-    function initializeHTML5Player(videoFile) {
-      const videoURL = URL.createObjectURL(videoFile);
-      elements.videoContainer.innerHTML = `
-                <video id="videoPlayer" 
-                    controls 
-                    width="640" 
-                    height="390" 
-                    style="max-width:100%">
-                    <source src="${videoURL}" type="${videoFile.type}">
-                    Your browser does not support the video tag.
-                </video>
-            `;
-      const videoElement = document.getElementById('videoPlayer');
-      state.videoElement = videoElement;
-      state.player = {
-        getCurrentTime: () => videoElement.currentTime,
-        getDuration: () => videoElement.duration,
-        playVideo: () => videoElement.play(),
-        seekTo: (seconds) => {
-          videoElement.currentTime = seconds;
-          videoElement.play();
-        }
-      };
-      state.videoLoaded = true;
-      state.currentVideoId = 'local-' + Date.now();
-      state.videoTitle = videoFile.name || 'Uploaded Video';
-      state.uploadedVideo = videoFile;
-      elements.reactionButtons.style.display = 'block';
-      elements.exportSection.style.display = 'flex';
-      showFeaturePanels(true);
-      updateUI();
-    }
-    // Initialize player based on selected provider
-    async function initializePlayer(videoId) {
-      if (!videoId && state.currentProvider !== 'upload') {
-        showError('Invalid video URL. Please check the link.');
-        return;
-      }
-      try {
-        toggleLoading(true);
-        switch (state.currentProvider) {
-          case 'youtube':
-            await initializeYouTubePlayer(videoId);
-            break;
-          case 'tiktok':
-            initializeTikTokPlayer(videoId);
-            break;
-          case 'vimeo':
-            initializeVimeoPlayer(videoId);
-            break;
-          case 'dailymotion':
-            initializeDailymotionPlayer(videoId);
-            break;
-          case 'twitch':
-            initializeTwitchPlayer(videoId);
-            break;
-          case 'facebook':
-            initializeFacebookPlayer(videoId);
-            break;
-          case 'instagram':
-            initializeInstagramPlayer(videoId);
-            break;
-          case 'odysee':
-            initializeOdyseePlayer(videoId);
-            break;
-          case 'vk':
-            initializeVKPlayer(videoId);
-            break;
-          case 'upload':
-            if (!state.uploadedVideo) {
-              showError('Please select a video file to upload.');
-              toggleLoading(false);
-              return;
-            }
-            initializeHTML5Player(state.uploadedVideo);
-            break;
-          default:
-            showError('Unknown video provider');
-            toggleLoading(false);
-            return;
-        }
-        loadComments(state.currentVideoId);
-      } catch (error) {
-        showError('Error loading video: ' + error.message);
-      } finally {
-        toggleLoading(false);
-      }
-    }
-    // Player event handlers
-    function onPlayerReady(event) {
-      if (state.player && state.player.getVideoData) {
-        state.videoTitle = state.player.getVideoData().title || 'YouTube Video';
-      }
-    }
-    function onPlayerError(event) {
-      const errorMessages = {
-        2: 'Invalid video ID',
-        5: 'HTML5 player error',
-        100: 'Video not found',
-        101: 'Embedding disabled by video owner',
-        150: 'Embedding disabled by video owner'
-      };
-      showError(errorMessages[event.data] || 'An error occurred while loading the video');
-    }
-    function onPlayerStateChange(event) {
-      // Handle state changes if needed
-    }
-    // Format timestamp
-    function formatTime(seconds) {
-      const hours = Math.floor(seconds / 3600);
-      const minutes = Math.floor((seconds % 3600) / 60);
-      const secs = Math.floor(seconds % 60);
-      return hours > 0 ? `${hours}:${padZero(minutes)}:${padZero(secs)}` : `${minutes}:${padZero(secs)}`;
-    }
-    function padZero(num) {
-      return num.toString().padStart(2, '0');
-    }
-    // Add comment or reaction to the list
-    function addComment({ text, timestamp, type, emoji }) {
-      const commentDiv = document.createElement('div');
-      commentDiv.className = 'comment fade-in';
-      if (type === 'reaction') {
-        commentDiv.classList.add('reaction');
-      }
-      const timeStr = formatTime(timestamp);
-      let content = '';
-      if (type === 'reaction' && emoji) {
-        content = `<span class="reaction-emoji">${emoji}</span>${sanitizeHTML(text)}`;
-      } else {
-        content = sanitizeHTML(text);
-      }
-      commentDiv.innerHTML = `
-                <span class="timestamp" data-time="${timestamp}">[${timeStr}]</span>
-                <span class="comment-text">${content}</span>
-            `;
-      elements.commentsList.insertBefore(commentDiv, elements.commentsList.firstChild);
-      saveComments();
-    }
-    // Show reaction modal
-    function showReactionModal(emoji) {
-      elements.selectedEmoji.textContent = emoji;
-      elements.selectedEmojiInput.value = emoji;
-      elements.reactionText.value = '';
-      elements.reactionModal.style.display = 'flex';
-      elements.reactionText.focus();
-    }
-    // Hide reaction modal
-    function hideReactionModal() {
-      elements.reactionModal.style.display = 'none';
-    }
-    // Sanitize HTML to prevent XSS
-    function sanitizeHTML(text) {
-      const div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
-    }
-    // Local Storage Functions
-    function saveComments() {
-      const comments = Array.from(elements.commentsList.children).map(comment => {
-        const isReaction = comment.classList.contains('reaction');
-        const textElement = comment.querySelector('.comment-text');
-        const emojiElement = textElement.querySelector('.reaction-emoji');
-        const commentObj = {
-          text: isReaction ? textElement.textContent.replace(emojiElement ? emojiElement.textContent : '', '') : textElement.textContent,
-          timestamp: parseInt(comment.querySelector('.timestamp').dataset.time),
-          type: isReaction ? 'reaction' : 'text'
-        };
-        if (isReaction && emojiElement) {
-          commentObj.emoji = emojiElement.textContent;
-        }
-        return commentObj;
-      });
-      try {
-        localStorage.setItem(`comments_${state.currentVideoId}`, JSON.stringify(comments));
-      } catch (e) {
-        console.error('Error saving comments to localStorage:', e);
-      }
-    }
-    function loadComments(videoId) {
-      try {
-        const savedComments = localStorage.getItem(`comments_${videoId}`);
-        if (savedComments) {
-          const comments = JSON.parse(savedComments);
-          elements.commentsList.innerHTML = '';
-          comments.forEach(comment => addComment(comment));
-        } else {
-          elements.commentsList.innerHTML = '';
-        }
-      } catch (e) {
-        console.error('Error loading comments from localStorage:', e);
-      }
-    }
-    // Export Functions
-    function exportAsCSV() {
-      const comments = Array.from(elements.commentsList.children);
-      let csvContent = "timestamp,time,type,content\n";
-      comments.forEach(comment => {
-        const timestamp = parseInt(comment.querySelector('.timestamp').dataset.time);
-        const formattedTime = comment.querySelector('.timestamp').textContent.replace('[', '').replace(']', '');
-        const isReaction = comment.classList.contains('reaction');
-        const content = comment.querySelector('.comment-text').textContent;
-        const escapedContent = content.replace(/"/g, '""');
-        csvContent += `${timestamp},"${formattedTime}","${isReaction ? 'Reaction' : 'Comment'}","${escapedContent}"\n`;
-      });
-      downloadFile(csvContent, `${state.videoTitle}_comments.csv`, 'text/csv');
-    }
-    function exportAsText() {
-      const comments = Array.from(elements.commentsList.children);
-      let textContent = `Comments for: ${state.videoTitle}\nVideo ID: ${state.currentVideoId}\nExported on: ${new Date().toLocaleString()}\n\n`;
-      comments.forEach(comment => {
-        const timestamp = comment.querySelector('.timestamp').textContent;
-        const content = comment.querySelector('.comment-text').textContent;
-        const isReaction = comment.classList.contains('reaction');
-        textContent += `${timestamp} ${isReaction ? '[Reaction]' : ''}: ${content}\n\n`;
-      });
-      downloadFile(textContent, `${state.videoTitle}_comments.txt`, 'text/plain');
-    }
-    function exportAsPDF() {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-      doc.setFontSize(16);
-      doc.text(`Comments for: ${state.videoTitle}`, 10, 10);
-      doc.setFontSize(12);
-      doc.text(`Video ID: ${state.currentVideoId}`, 10, 20);
-      doc.text(`Exported on: ${new Date().toLocaleString()}`, 10, 30);
-      const comments = Array.from(elements.commentsList.children);
-      let y = 40;
-      doc.setFontSize(10);
-      comments.forEach(comment => {
-        if (y > 270) {
-          doc.addPage();
-          y = 20;
-        }
-        const timestamp = comment.querySelector('.timestamp').textContent;
-        const content = comment.querySelector('.comment-text').textContent;
-        const isReaction = comment.classList.contains('reaction');
-        doc.text(`${timestamp} ${isReaction ? '[Reaction]' : ''}:`, 10, y);
-        const contentLines = doc.splitTextToSize(content, 180);
-        doc.text(contentLines, 10, y + 5);
-        y += 10 + (contentLines.length * 5);
-      });
-      doc.save(`${state.videoTitle}_comments.pdf`);
-    }
-    async function exportAsHTML() {
-      let videoEmbed = '';
-      let videoFileName = '';
-      switch (state.currentProvider) {
-        case 'youtube':
-          videoEmbed = `
-                        <iframe 
-                            width="560" 
-                            height="315" 
-                            src="https://www.youtube.com/embed/${state.currentVideoId}" 
-                            frameborder="0" 
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                            allowfullscreen>
-                        </iframe>`;
-          break;
-        case 'tiktok':
-          videoEmbed = `
-                        <blockquote class="tiktok-embed" 
-                            cite="https://www.tiktok.com/@/video/${state.currentVideoId}" 
-                            data-video-id="${state.currentVideoId}" 
-                            style="max-width: 605px; min-width: 325px;">
-                            <section></section>
-                        </blockquote>
-                        <script async src="https://www.tiktok.com/embed.js"><\/script>`;
-          break;
-        case 'vimeo':
-          videoEmbed = `
-                        <iframe 
-                            src="https://player.vimeo.com/video/${state.currentVideoId}" 
-                            width="560" 
-                            height="315" 
-                            frameborder="0" 
-                            allow="autoplay; fullscreen; picture-in-picture" 
-                            allowfullscreen>
-                        </iframe>
-                        <script src="https://player.vimeo.com/api/player.js"><\/script>`;
-          break;
-        case 'dailymotion':
-          videoEmbed = `
-                        <iframe 
-                            frameborder="0" 
-                            width="560" 
-                            height="315" 
-                            src="https://www.dailymotion.com/embed/video/${state.currentVideoId}" 
-                            allowfullscreen allow="autoplay">
-                        </iframe>`;
-          break;
-        case 'twitch':
-          videoEmbed = `
-                        <iframe 
-                            src="https://player.twitch.tv/?video=${state.currentVideoId}&parent=localhost" 
-                            height="315" 
-                            width="560" 
-                            allowfullscreen>
-                        </iframe>`;
-          break;
-        case 'facebook':
-          videoEmbed = `
-                        <iframe 
-                            src="https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2Ffacebook%2Fvideos%2F${state.currentVideoId}%2F&show_text=false" 
-                            width="560" 
-                            height="315" 
-                            style="border:none;overflow:hidden" 
-                            scrolling="no" 
-                            frameborder="0" 
-                            allowfullscreen="true" 
-                            allow="autoplay; clipboard-write; encrypted-media; picture-in-picture">
-                        </iframe>`;
-          break;
-        case 'instagram':
-          videoEmbed = `
-                        <iframe 
-                            src="https://www.instagram.com/p/${state.currentVideoId}/embed/" 
-                            width="400" 
-                            height="480" 
-                            frameborder="0" 
-                            scrolling="no" 
-                            allowtransparency="true">
-                        </iframe>`;
-          break;
-        case 'odysee':
-          videoEmbed = `
-                        <iframe 
-                            width="560" 
-                            height="315" 
-                            src="https://odysee.com/$/embed/${state.currentVideoId}" 
-                            allowfullscreen>
-                        </iframe>`;
-          break;
-        case 'vk':
-          videoEmbed = `
-                        <iframe 
-                            width="560" 
-                            height="315" 
-                            src="https://vk.com/video_ext.php?oid=-1&id=${state.currentVideoId}&hd=2" 
-                            allow="autoplay; encrypted-media; fullscreen; picture-in-picture;" 
-                            frameborder="0" 
-                            allowfullscreen>
-                        </iframe>`;
-          break;
-        case 'upload':
-          videoFileName = sanitizeFileName(state.uploadedVideo.name);
-          videoEmbed = `
-                        <video width="560" height="315" controls>
-                            <source src="${videoFileName}" type="${state.uploadedVideo.type}">
-                            Your browser does not support the video tag.
-                        </video>`;
-          break;
-      }
-      let htmlContent = `
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>${state.videoTitle} - Comments Export</title>
-                <style>
-                    body {
-                        font-family: Arial, sans-serif;
-                        max-width: 800px;
-                        margin: 0 auto;
-                        padding: 20px;
-                        line-height: 1.6;
-                    }
-                    h1 {
-                        color: #333;
-                        border-bottom: 2px solid #eee;
-                        padding-bottom: 10px;
-                    }
-                    .video-container {
-                        position: relative;
-                        padding-bottom: 56.25%;
-                        height: 0;
-                        overflow: hidden;
-                        margin-bottom: 20px;
-                    }
-                    .video-container iframe, .video-container video, .video-container blockquote {
-                        position: absolute;
-                        top: 0;
-                        left: 0;
-                        width: 100%;
-                        height: 100%;
-                    }
-                    .comment {
-                        padding: 15px;
-                        margin-bottom: 10px;
-                        border-bottom: 1px solid #eee;
-                    }
-                    .timestamp {
-                        color: #007bff;
-                        font-weight: bold;
-                        margin-right: 10px;
-                        text-decoration: none;
-                    }
-                    .timestamp:hover {
-                        text-decoration: underline;
-                    }
-                    .reaction-label {
-                        background-color: #ffd700;
-                        color: #333;
-                        padding: 2px 6px;
-                        border-radius: 4px;
-                        font-size: 12px;
-                        margin-right: 8px;
-                    }
-                    .reaction-emoji {
-                        margin-right: 5px;
-                        font-size: 18px;
-                    }
-                    .export-info {
-                        color: #666;
-                        font-size: 12px;
-                        margin-top: 20px;
-                        text-align: center;
-                    }
-                </style>
-            </head>
-            <body>
-                <h1>${state.videoTitle}</h1>
-                <div class="video-container">
-                    ${videoEmbed}
-                </div>
-                <h2>Comments</h2>
-            `;
-      const comments = Array.from(elements.commentsList.children);
-      comments.forEach(comment => {
-        const timestamp = comment.querySelector('.timestamp').textContent;
-        const timestampValue = comment.querySelector('.timestamp').dataset.time;
-        const content = comment.querySelector('.comment-text').innerHTML;
-        const isReaction = comment.classList.contains('reaction');
-        let timestampLink = '';
-        if (state.currentProvider === 'youtube') {
-          timestampLink = `https://www.youtube.com/watch?v=${state.currentVideoId}&t=${timestampValue}`;
-        } else if (state.currentProvider === 'upload') {
-          timestampLink = `javascript:document.querySelector('video').currentTime=${timestampValue};document.querySelector('video').play();`;
-        } else {
-          timestampLink = '#';
-        }
-        htmlContent += `
-                <div class="comment">
-                    <a href="${timestampLink}" class="timestamp" ${state.currentProvider === 'youtube' ? 'target="_blank"' : ''}>${timestamp}</a>
-                    ${isReaction ? '<span class="reaction-label">Reaction</span>' : ''}
-                    <span class="comment-content">${content}</span>
-                </div>
-                `;
-      });
-      htmlContent += `
-                <div class="export-info">
-                    Exported on: ${new Date().toLocaleString()}<br>
-                    Provider: ${state.currentProvider.toUpperCase()}<br>
-                    Video ID: ${state.currentVideoId}
-                </div>
-            </body>
-            </html>
-            `;
-      if (state.currentProvider === 'upload' && state.uploadedVideo) {
-        await exportAsZipWithVideo(htmlContent, videoFileName);
-      } else {
-        downloadFile(htmlContent, `${state.videoTitle}_comments.html`, 'text/html');
-      }
-    }
-    async function exportAsZipWithVideo(htmlContent, videoFileName) {
-      try {
-        toggleLoading(true);
-        const zip = new JSZip();
-        zip.file("index.html", htmlContent);
-        zip.file(videoFileName, state.uploadedVideo);
-        const zipBlob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
-        const zipUrl = URL.createObjectURL(zipBlob);
-        const a = document.createElement('a');
-        a.href = zipUrl;
-        a.download = sanitizeFileName(`${state.videoTitle}_with_video.zip`);
-        a.click();
-        setTimeout(() => {
-          URL.revokeObjectURL(zipUrl);
-        }, 100);
-      } catch (error) {
-        console.error('Error creating zip file:', error);
-        showError('Error creating zip file: ' + error.message);
-      } finally {
-        toggleLoading(false);
-      }
-    }
-    function sanitizeFileName(name) {
-      return name.replace(/[^\w\s\.-]/gi, '')
-                 .replace(/\s+/g, '_')
-                 .substring(0, 100);
-    }
-    function downloadFile(content, filename, contentType) {
-      const blob = new Blob([content], { type: contentType });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = sanitizeFileName(filename);
-      a.click();
-      setTimeout(() => {
-        URL.revokeObjectURL(url);
-      }, 100);
-    }
-    // Timeline Management
-    function updateTimeline() {
-      if (!state.player || !state.videoLoaded) return;
-      try {
-        const duration = state.player.getDuration() || 0;
-        const currentTime = state.player.getCurrentTime() || 0;
-        if (duration > 0) {
-          const progress = (currentTime / duration) * 100;
-          const timelineProgress = document.getElementById('timelineProgress');
-          if (timelineProgress) {
-            timelineProgress.style.width = `${progress}%`;
-          }
-        }
-      } catch (e) {
-        console.error('Error updating timeline:', e);
-      }
-    }
-    function createTimelineMarkers() {
-      const markers = document.getElementById('timelineMarkers');
-      markers.innerHTML = '';
-      if (!state.player) return;
-      try {
-        const comments = Array.from(elements.commentsList.children);
-        const duration = state.player.getDuration() || 600;
-        comments.forEach(comment => {
-          const timestamp = parseInt(comment.querySelector('.timestamp').dataset.time);
-          const position = (timestamp / duration) * 100;
-          const type = comment.classList.contains('reaction') ? 'reaction' : 'comment';
-          const text = comment.querySelector('.comment-text').textContent;
-          if (position >= 0 && position <= 100) {
-            const marker = document.createElement('div');
-            marker.className = 'timeline-marker';
-            marker.setAttribute('data-type', type);
-            marker.style.left = `${position}%`;
-            const tooltip = document.createElement('div');
-            tooltip.className = 'timeline-tooltip';
-            tooltip.textContent = `${formatTime(timestamp)} - ${text.length > 30 ? text.substring(0, 30) + '...' : text}`;
-            marker.appendChild(tooltip);
-            markers.appendChild(marker);
-            marker.addEventListener('click', () => {
-              if (state.player && typeof state.player.seekTo === 'function') {
-                state.player.seekTo(timestamp, true);
-                if (typeof state.player.playVideo === 'function') {
-                  state.player.playVideo();
-                }
-              }
-            });
-          }
-        });
-      } catch (e) {
-        console.error('Error creating timeline markers:', e);
-      }
-    }
-    // Stats Management
-    function updateStats() {
-      const comments = Array.from(elements.commentsList.children);
-      const reactions = comments.filter(c => c.classList.contains('reaction'));
-      const textComments = comments.filter(c => !c.classList.contains('reaction'));
-      document.getElementById('totalCommentsValue').textContent = textComments.length;
-      document.getElementById('totalReactionsValue').textContent = reactions.length;
-      const timestamps = comments.map(c => parseInt(c.querySelector('.timestamp').dataset.time));
-      const avgTime = timestamps.length ? Math.floor(timestamps.reduce((a, b) => a + b, 0) / timestamps.length) : 0;
-      document.getElementById('avgTimeValue').textContent = formatTime(avgTime);
-      const reactionSummary = document.getElementById('reactionSummary');
-      reactionSummary.innerHTML = '';
-      const reactionCounts = {};
-      reactions.forEach(reaction => {
-        const emojiElement = reaction.querySelector('.reaction-emoji');
-        const emoji = emojiElement ? emojiElement.textContent : '👍';
-        reactionCounts[emoji] = (reactionCounts[emoji] || 0) + 1;
-      });
-      Object.entries(reactionCounts).forEach(([emoji, count]) => {
-        const stat = document.createElement('div');
-        stat.className = 'reaction-stat';
-        stat.innerHTML = `
-                    <span class="reaction-emoji">${emoji}</span>
-                    <span class="reaction-count">${count}</span>
-                `;
-        reactionSummary.appendChild(stat);
-      });
-    }
-    // Show/hide feature panels
-    function showFeaturePanels(show) {
-      const panels = [
-        document.getElementById('timelineContainer'),
-        document.getElementById('statsPanel'),
-        document.getElementById('reactionSummary'),
-        document.getElementById('exportSection')
-      ];
-      panels.forEach(panel => {
-        if (panel) {
-          if (panel.id === 'exportSection' || panel.id === 'reactionSummary') {
-            panel.style.display = show ? 'flex' : 'none';
-          } else {
-            panel.style.display = show ? 'block' : 'none';
-          }
-        }
-      });
-    }
-    // Update provider hint based on selected provider
-    function updateProviderHint() {
-      let hint = '';
-      switch (state.currentProvider) {
-        case 'youtube':
-          hint = 'Example: https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID';
-          break;
-        case 'tiktok':
-          hint = 'Example: https://www.tiktok.com/@username/video/1234567890123456789';
-          break;
-        case 'vimeo':
-          hint = 'Example: https://vimeo.com/123456789';
-          break;
-        case 'dailymotion':
-          hint = 'Example: https://www.dailymotion.com/video/x7yz1a2 or https://dai.ly/x7yz1a2';
-          break;
-        case 'twitch':
-          hint = 'Example: https://www.twitch.tv/videos/123456789';
-          break;
-        case 'facebook':
-          hint = 'Example: https://www.facebook.com/watch/?v=123456789';
-          break;
-        case 'instagram':
-          hint = 'Example: https://www.instagram.com/p/abCD123EfGh/';
-          break;
-        case 'odysee':
-          hint = 'Example: https://odysee.com/@channel:4/video-name';
-          break;
-        case 'vk':
-          hint = 'Example: https://vk.com/video-12345_67890';
-          break;
-        default:
-          hint = '';
-      }
-      elements.providerHint.textContent = hint;
-    }
-    // Format file size
-    function formatFileSize(bytes) {
-      if (bytes === 0) return '0 Bytes';
-      const k = 1024;
-      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-      const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    }
-    // Handle file upload events
-    function handleFileSelect(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-      if (!file.type.startsWith('video/')) {
-        showError('Please select a valid video file');
-        return;
-      }
-      if (file.size > 100 * 1024 * 1024) {
-        showError('File size exceeds 100MB limit');
-        return;
-      }
-      state.uploadedVideo = file;
-      elements.uploadedFileName.textContent = file.name;
-      elements.uploadedFileSize.textContent = formatFileSize(file.size);
-      elements.uploadedFileInfo.style.display = 'block';
-    }
-    // Handle drag and drop events
-    function handleDragOver(event) {
-      event.preventDefault();
-      elements.fileUploadWrapper.classList.add('drag-over');
-    }
-    function handleDragLeave(event) {
-      event.preventDefault();
-      elements.fileUploadWrapper.classList.remove('drag-over');
-    }
-    function handleDrop(event) {
-      event.preventDefault();
-      elements.fileUploadWrapper.classList.remove('drag-over');
-      if (event.dataTransfer.items) {
-        for (let i = 0; i < event.dataTransfer.items.length; i++) {
-          if (event.dataTransfer.items[i].kind === 'file') {
-            const file = event.dataTransfer.items[i].getAsFile();
-            elements.videoUpload.files = event.dataTransfer.files;
-            handleFileSelect({ target: { files: [file] } });
-            break;
-          }
-        }
-      } else {
-        if (event.dataTransfer.files.length > 0) {
-          elements.videoUpload.files = event.dataTransfer.files;
-          handleFileSelect({ target: { files: [event.dataTransfer.files[0]] } });
-        }
-      }
-    }
-    // Switch between different video sources
-    function switchVideoSource(sourceType) {
-      state.currentProvider = sourceType;
-      elements.videoUrlContainer.style.display = 'none';
-      elements.fileUploadContainer.style.display = 'none';
-      if (sourceType === 'upload') {
-        elements.fileUploadContainer.style.display = 'block';
-      } else {
-        elements.videoUrlContainer.style.display = 'block';
-        updateProviderHint();
-      }
-      elements.sourceButtons.forEach(button => {
-        if (button.getAttribute('data-source') === sourceType) {
-          button.classList.add('active');
-        } else {
-          button.classList.remove('active');
-        }
-      });
-    }
-    // Update all UI components
-    function updateUI() {
-      updateTimeline();
-      createTimelineMarkers();
-      updateStats();
-    }
-    // Event Listeners
-    elements.sourceButtons.forEach(button => {
-      button.addEventListener('click', () => {
-        const sourceType = button.getAttribute('data-source');
-        switchVideoSource(sourceType);
-      });
-    });
-    elements.loadVideoBtn.addEventListener('click', async () => {
-      const url = elements.videoLink.value.trim();
-      const videoId = extractVideoID(url, state.currentProvider);
-      if (videoId) {
-        await initializePlayer(videoId);
-      } else {
-        showError(`Please enter a valid ${state.currentProvider.toUpperCase()} URL`);
-      }
-    });
-    elements.videoLink.addEventListener('keypress', async (e) => {
-      if (e.key === 'Enter') {
-        elements.loadVideoBtn.click();
-      }
-    });
-    elements.videoUpload.addEventListener('change', handleFileSelect);
-    elements.fileUploadWrapper.addEventListener('dragover', handleDragOver);
-    elements.fileUploadWrapper.addEventListener('dragleave', handleDragLeave);
-    elements.fileUploadWrapper.addEventListener('drop', handleDrop);
-    elements.uploadVideoBtn.addEventListener('click', async () => {
-      if (state.uploadedVideo) {
-        await initializePlayer();
-      } else {
-        showError('Please select a video file to upload');
-      }
-    });
-    document.querySelectorAll('.emoji-btn').forEach(button => {
-      button.addEventListener('click', () => {
-        if (!state.videoLoaded) {
-          showError('Please load a video first');
-          return;
-        }
-        const emoji = button.getAttribute('data-emoji');
-        showReactionModal(emoji);
-      });
-    });
-    elements.commentsList.addEventListener('click', (e) => {
-      if (e.target.classList.contains('timestamp') && state.videoLoaded) {
-        const time = parseInt(e.target.dataset.time, 10);
-        if (state.player && typeof state.player.seekTo === 'function') {
-          state.player.seekTo(time, true);
-          if (typeof state.player.playVideo === 'function') {
-            state.player.playVideo();
-          }
-        }
-      }
-    });
-    elements.closeReactionModal.addEventListener('click', hideReactionModal);
-    elements.submitReaction.addEventListener('click', () => {
-      const emoji = elements.selectedEmojiInput.value;
-      const text = elements.reactionText.value.trim();
-      if (!text) {
-        showError('Please add some text with your reaction');
-        return;
-      }
-      try {
-        const currentTime = Math.floor(state.player.getCurrentTime());
-        addComment({ 
-          text: text, 
-          timestamp: currentTime, 
-          type: 'reaction',
-          emoji: emoji
-        });
-      } catch (e) {
-        console.error('Error adding reaction:', e);
-        addComment({ 
-          text: text, 
-          timestamp: 0, 
-          type: 'reaction',
-          emoji: emoji
-        });
-      }
-      hideReactionModal();
-    });
-    elements.reactionText.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        elements.submitReaction.click();
-      }
-    });
-    elements.exportCSV.addEventListener('click', () => {
-      if (!state.videoLoaded || elements.commentsList.children.length === 0) {
-        showError('No comments to export');
-        return;
-      }
-      exportAsCSV();
-    });
-    elements.exportText.addEventListener('click', () => {
-      if (!state.videoLoaded || elements.commentsList.children.length === 0) {
-        showError('No comments to export');
-        return;
-      }
-      exportAsText();
-    });
-    elements.exportPDF.addEventListener('click', () => {
-      if (!state.videoLoaded || elements.commentsList.children.length === 0) {
-        showError('No comments to export');
-        return;
-      }
-      exportAsPDF();
-    });
-    elements.exportHTML.addEventListener('click', () => {
-      if (!state.videoLoaded || elements.commentsList.children.length === 0) {
-        showError('No comments to export');
-        return;
-      }
-      exportAsHTML();
-    });
-    setInterval(updateTimeline, 1000);
-    document.addEventListener('DOMContentLoaded', () => {
-      switchVideoSource('youtube');
-      const urlParams = new URLSearchParams(window.location.search);
-      const videoId = urlParams.get('v');
-      const provider = urlParams.get('provider');
-      if (provider && Object.keys(VIDEO_PATTERNS).includes(provider)) {
-        state.currentProvider = provider;
-        switchVideoSource(provider);
-      }
-      if (videoId) {
-        elements.videoLink.value = videoId.includes('://') ? videoId : (state.currentProvider === 'youtube' ? `https://youtu.be/${videoId}` : videoId);
-        elements.loadVideoBtn.click();
-      }
-    });
-  </script>
+  
+  <!-- Application Script -->
+  <script src="script.js"></script>
 </body>
 </html>
