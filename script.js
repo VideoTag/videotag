@@ -1925,19 +1925,8 @@ function getTimelineMarkersData() {
 function generateHTMLContent() {
   const data = getCommentsData();
   const markers = getTimelineMarkersData();
-  const isYouTube = state.currentProvider === 'youtube' || state.currentProvider === 'youtube_shorts';
-  const isVimeo = state.currentProvider === 'vimeo';
   const videoId = state.currentVideoId;
-  
-  // Simple embed URL like main app
-  let embedUrl = '';
-  if (isYouTube) {
-    embedUrl = `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`;
-  } else if (isVimeo) {
-    embedUrl = `https://player.vimeo.com/video/${videoId}`;
-  } else if (state.currentProvider === 'dailymotion') {
-    embedUrl = `https://www.dailymotion.com/embed/video/${videoId}`;
-  }
+  const isYouTube = state.currentProvider === 'youtube' || state.currentProvider === 'youtube_shorts';
   
   return `<!DOCTYPE html>
 <html lang="en">
@@ -1993,40 +1982,60 @@ function generateHTMLContent() {
       margin-bottom: 2rem;
       box-shadow: 0 8px 32px rgba(0,0,0,0.5);
     }
-    .video-container { 
-      position: relative;
-      background: #000; 
-      border-radius: 12px; 
-      overflow: hidden;
-      margin-bottom: 1rem;
+    .embed-wrapper {
+      width: 100%;
       aspect-ratio: 16/9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
     }
-    .video-container iframe {
+    .embed-wrapper iframe {
       width: 100%;
       height: 100%;
       border: none;
       border-radius: 12px;
     }
-    .controls {
+    .seek-controls {
       display: flex;
       align-items: center;
-      gap: 1rem;
+      gap: 0.5rem;
+      margin-top: 1rem;
       padding: 0.75rem;
       background: var(--surface-elevated);
       border-radius: 8px;
     }
-    .time-display {
-      font-family: 'SF Mono', 'Fira Code', monospace;
-      font-size: 1rem;
-      min-width: 100px;
+    .seek-controls span {
+      color: #fff;
+      font-size: 12px;
+      white-space: nowrap;
     }
-    .time-display .current { font-weight: 700; color: var(--primary-light); }
-    .time-display .duration { color: var(--muted); }
+    .seek-controls input {
+      padding: 6px 10px;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 6px;
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      font-family: monospace;
+      font-size: 14px;
+      width: 70px;
+    }
+    .seek-controls button {
+      padding: 6px 14px;
+      background: linear-gradient(135deg, #6366f1, #ec4899);
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .seek-controls button:hover { opacity: 0.9; }
     .timeline {
       flex: 1;
       position: relative;
-      height: 40px;
+      height: 30px;
       cursor: pointer;
+      margin-left: 1rem;
     }
     .timeline-track {
       position: absolute;
@@ -2164,7 +2173,8 @@ function generateHTMLContent() {
       body { padding: 1rem; }
       .comment { flex-direction: column; gap: 0.5rem; }
       .timestamp { align-self: flex-start; }
-      .controls { flex-direction: column; }
+      .seek-controls { flex-wrap: wrap; }
+      .timeline { width: 100%; margin: 0.5rem 0 0 0; }
     }
   </style>
 </head>
@@ -2179,20 +2189,19 @@ function generateHTMLContent() {
   </div>
   
   <div class="video-section">
-    <div class="video-container">
+    <div class="embed-wrapper">
       <iframe 
-        id="player"
-        src="${embedUrl}"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        id="yt-iframe"
+        src="https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
         allowfullscreen>
       </iframe>
     </div>
     
-    <div class="controls">
-      <div class="time-display">
-        <span class="current" id="currentTime">0:00</span>
-        <span class="duration">/ ${formatTime(state.videoDuration)}</span>
-      </div>
+    <div class="seek-controls">
+      <span>⏱️ Jump to:</span>
+      <input type="text" id="seek-input" placeholder="0:00">
+      <button id="seek-btn">Go</button>
       
       <div class="timeline" id="timeline">
         <div class="timeline-track"></div>
@@ -2236,10 +2245,19 @@ function generateHTMLContent() {
   </div>
 
   <script>
-    const duration = ${state.videoDuration};
     const videoId = '${videoId}';
-    const isYouTube = ${isYouTube};
-    const iframe = document.getElementById('player');
+    const duration = ${state.videoDuration};
+    const iframe = document.getElementById('yt-iframe');
+    const seekBtn = document.getElementById('seek-btn');
+    const seekInput = document.getElementById('seek-input');
+    
+    function parseTime(str) {
+      if (!str) return 0;
+      const parts = str.split(':').map(Number);
+      if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+      if (parts.length === 2) return parts[0] * 60 + parts[1];
+      return parseInt(str) || 0;
+    }
     
     function formatTime(sec) {
       if (!sec || isNaN(sec)) return '0:00';
@@ -2251,30 +2269,41 @@ function generateHTMLContent() {
     }
     
     function seekTo(seconds) {
-      if (isYouTube) {
-        iframe.src = 'https://www.youtube.com/embed/' + videoId + '?rel=0&modestbranding=1&start=' + Math.floor(seconds) + '&autoplay=1';
-      } else {
-        iframe.src = iframe.src.split('?')[0] + '?start=' + Math.floor(seconds) + '&autoplay=1';
-      }
-      document.getElementById('currentTime').textContent = formatTime(seconds);
-      document.querySelector('.video-section').scrollIntoView({ behavior: 'smooth' });
+      iframe.src = 'https://www.youtube.com/embed/' + videoId + '?rel=0&modestbranding=1&start=' + Math.floor(seconds) + '&autoplay=1';
     }
     
+    seekBtn.addEventListener('click', function() {
+      var seconds = parseTime(seekInput.value);
+      if (seconds >= 0) seekTo(seconds);
+    });
+    
+    seekInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        var seconds = parseTime(seekInput.value);
+        if (seconds >= 0) seekTo(seconds);
+      }
+    });
+    
     // Timeline click
-    document.getElementById('timeline').addEventListener('click', e => {
+    document.getElementById('timeline').addEventListener('click', function(e) {
       if (e.target.closest('.timeline-marker')) return;
-      const rect = e.currentTarget.getBoundingClientRect();
-      seekTo(((e.clientX - rect.left) / rect.width) * duration);
+      var rect = this.getBoundingClientRect();
+      var percent = (e.clientX - rect.left) / rect.width;
+      seekTo(percent * duration);
     });
     
     // Marker clicks
-    document.querySelectorAll('.timeline-marker').forEach(m => {
-      m.addEventListener('click', () => seekTo(parseInt(m.dataset.time)));
+    document.querySelectorAll('.timeline-marker').forEach(function(m) {
+      m.addEventListener('click', function() {
+        seekTo(parseInt(this.dataset.time));
+      });
     });
     
     // Comment clicks
-    document.querySelectorAll('.comment').forEach(c => {
-      c.addEventListener('click', () => seekTo(parseInt(c.dataset.time)));
+    document.querySelectorAll('.comment').forEach(function(c) {
+      c.addEventListener('click', function() {
+        seekTo(parseInt(this.dataset.time));
+      });
     });
   </script>
 </body>
