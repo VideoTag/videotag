@@ -135,8 +135,7 @@ function cacheElements() {
     'videoLink', 'loadVideoBtn', 'videoContainer', 'reactionButtons',
     'commentsList', 'loadingSpinner', 'reactionModal', 'selectedEmoji',
     'selectedEmojiInput', 'reactionText', 'closeReactionModal', 'submitReaction',
-    'cancelReaction', 'exportCSV', 'exportText', 'exportPDF', 'exportHTML',
-    'exportJSON', 'exportZIP', 'videoUpload', 'uploadedFileInfo', 'uploadedFileName',
+    'cancelReaction', 'exportHTML', 'exportZIP', 'videoUpload', 'uploadedFileInfo', 'uploadedFileName',
     'uploadedFileSize', 'timelineProgress', 'timelineMarkers',
     'statsPanel', 'reactionSummary', 'reactionSummarySection', 'videoPanel',
     'commentsEmpty', 'totalCommentsValue', 'totalReactionsValue', 'avgTimeValue',
@@ -2244,16 +2243,321 @@ function generateHTMLContent() {
 </html>`;
 }
 
-function exportHTML() {
+async function exportHTML() {
   const data = getCommentsData();
   if (data.length === 0) {
     showToast('No comments to export', 'error');
     return;
   }
   
-  const html = generateHTMLContent();
-  downloadFile(html, `${state.videoTitle}_export.html`, 'text/html');
-  showToast('Exported as HTML!', 'success');
+  const isLocalVideo = state.currentProvider === 'upload' && state.uploadedVideo;
+  
+  if (isLocalVideo) {
+    // For local videos, embed as base64
+    showToast('Creating HTML with embedded video...', 'info');
+    
+    try {
+      const videoBase64 = await fileToBase64(state.uploadedVideo);
+      const html = generateHTMLWithEmbeddedVideo(videoBase64, state.uploadedVideo.type);
+      downloadFile(html, `${state.videoTitle}_export.html`, 'text/html');
+      showToast('HTML exported with video!', 'success');
+    } catch (error) {
+      console.error('Export error:', error);
+      showToast('Failed to export: ' + error.message, 'error');
+    }
+  } else {
+    // For online videos, use thumbnail + link
+    const html = generateHTMLContent();
+    downloadFile(html, `${state.videoTitle}_export.html`, 'text/html');
+    showToast('HTML exported!', 'success');
+  }
+}
+
+// Convert file to base64
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+// Generate HTML with embedded base64 video
+function generateHTMLWithEmbeddedVideo(videoBase64, videoType) {
+  const data = getCommentsData();
+  
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${sanitizeHTML(state.videoTitle)} - ReactVid Export</title>
+  <style>
+    :root { 
+      --primary: #6366f1; 
+      --primary-light: #818cf8;
+      --secondary: #ec4899;
+      --bg: #05050a; 
+      --surface: #0f0f1a; 
+      --surface-elevated: #151522;
+      --text: #fff; 
+      --text-secondary: #a0a0b8;
+      --muted: #5a5a70; 
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: 'Segoe UI', system-ui, sans-serif; 
+      background: var(--bg); 
+      color: var(--text); 
+      line-height: 1.6; 
+      padding: 2rem; 
+      max-width: 1000px; 
+      margin: 0 auto; 
+    }
+    .header { text-align: center; margin-bottom: 2rem; }
+    h1 { 
+      font-size: 2rem; 
+      margin-bottom: 0.5rem; 
+      background: linear-gradient(135deg, #6366f1, #ec4899); 
+      -webkit-background-clip: text; 
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .meta { color: var(--muted); font-size: 0.875rem; margin-bottom: 1rem; }
+    .meta span {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      background: var(--surface);
+      border-radius: 20px;
+      margin: 0.25rem;
+    }
+    .video-section {
+      background: var(--surface);
+      border-radius: 16px;
+      padding: 1rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .video-container { 
+      background: #000; 
+      border-radius: 12px; 
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+    .video-container video {
+      width: 100%;
+      max-height: 70vh;
+      display: block;
+    }
+    .time-display {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      padding: 0.75rem;
+      background: var(--surface-elevated);
+      border-radius: 8px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+    .time-display .current {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--primary-light);
+    }
+    .time-display .duration {
+      color: var(--muted);
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .stat {
+      padding: 1.25rem;
+      background: var(--surface);
+      border-radius: 12px;
+      text-align: center;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    .stat-value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    h2 {
+      font-size: 1.25rem;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    h2::before {
+      content: '';
+      display: block;
+      width: 4px;
+      height: 24px;
+      background: var(--primary);
+      border-radius: 2px;
+    }
+    .comments-list { display: flex; flex-direction: column; gap: 0.75rem; }
+    .comment { 
+      display: flex; 
+      gap: 1rem; 
+      padding: 1rem 1.25rem; 
+      background: var(--surface); 
+      border-radius: 12px; 
+      border: 1px solid rgba(255,255,255,0.05);
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+    .comment:hover {
+      transform: translateX(4px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      border-color: var(--primary);
+    }
+    .comment.active {
+      border-color: var(--primary);
+      background: var(--surface-elevated);
+      box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
+    }
+    .comment.reaction { border-left: 3px solid #fbbf24; }
+    .timestamp { 
+      padding: 0.35rem 0.75rem; 
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      border-radius: 8px; 
+      font-family: 'SF Mono', 'Fira Code', monospace; 
+      font-size: 0.8rem; 
+      flex-shrink: 0;
+      font-weight: 600;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .timestamp:hover { transform: scale(1.05); }
+    .text { flex: 1; color: var(--text-secondary); }
+    .emoji { font-size: 1.25rem; margin-right: 0.5rem; }
+    .footer {
+      text-align: center;
+      margin-top: 3rem;
+      padding-top: 2rem;
+      border-top: 1px solid rgba(255,255,255,0.05);
+      color: var(--muted);
+      font-size: 0.875rem;
+    }
+    @media (max-width: 600px) {
+      body { padding: 1rem; }
+      .comment { flex-direction: column; gap: 0.5rem; }
+      .timestamp { align-self: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>${sanitizeHTML(state.videoTitle)}</h1>
+    <p class="meta">
+      <span>📺 Local Video</span>
+      <span>📅 ${new Date().toLocaleDateString()}</span>
+      <span>💬 ${data.length} items</span>
+    </p>
+  </div>
+  
+  <div class="video-section">
+    <div class="video-container">
+      <video id="video" controls>
+        <source src="${videoBase64}" type="${videoType}">
+        Your browser does not support video.
+      </video>
+    </div>
+    <div class="time-display">
+      <span class="current" id="currentTime">0:00</span>
+      <span class="duration">/ ${formatTime(state.videoDuration)}</span>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-value">${data.filter(d => d.type === 'comment').length}</div>
+      <div class="stat-label">Comments</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">${data.filter(d => d.type === 'reaction').length}</div>
+      <div class="stat-label">Reactions</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">${formatTime(state.videoDuration)}</div>
+      <div class="stat-label">Duration</div>
+    </div>
+  </div>
+
+  <h2>Comments & Reactions</h2>
+  <div class="comments-list" id="commentsList">
+    ${data.map((d, i) => `
+    <div class="comment${d.type === 'reaction' ? ' reaction' : ''}" data-time="${d.timestamp}" data-index="${i}">
+      <button class="timestamp" onclick="seekTo(${d.timestamp})">[${d.time}]</button>
+      <span class="text">${d.emoji ? `<span class="emoji">${d.emoji}</span>` : ''}${sanitizeHTML(d.text)}</span>
+    </div>`).join('')}
+  </div>
+
+  <div class="footer">
+    <p>Exported from <strong>ReactVid</strong> — Video Reactions & Comments Tool</p>
+  </div>
+
+  <script>
+    const video = document.getElementById('video');
+    const currentTimeEl = document.getElementById('currentTime');
+    const comments = document.querySelectorAll('.comment');
+    
+    function formatTime(sec) {
+      if (!sec || isNaN(sec)) return '0:00';
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = Math.floor(sec % 60);
+      const pad = n => n.toString().padStart(2, '0');
+      return h > 0 ? h + ':' + pad(m) + ':' + pad(s) : m + ':' + pad(s);
+    }
+    
+    function seekTo(time) {
+      video.currentTime = time;
+      video.play();
+      video.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    
+    video.addEventListener('timeupdate', () => {
+      currentTimeEl.textContent = formatTime(video.currentTime);
+      
+      // Highlight active comments
+      const ct = video.currentTime;
+      comments.forEach(c => {
+        const t = parseInt(c.dataset.time);
+        if (ct >= t && ct < t + 3) {
+          c.classList.add('active');
+        } else {
+          c.classList.remove('active');
+        }
+      });
+    });
+    
+    // Click comment to seek
+    comments.forEach(c => {
+      c.addEventListener('click', () => {
+        seekTo(parseInt(c.dataset.time));
+      });
+    });
+  </script>
+</body>
+</html>`;
 }
 
 async function exportZIP() {
@@ -3018,40 +3322,16 @@ function initEventListeners() {
     }
   });
   
-  // Export handlers
-  elements.exportZIP?.addEventListener('click', () => {
-    if (!validateExport()) return;
-    exportZIP();
-    closeExportDropdown();
-  });
-  
-  elements.exportCSV?.addEventListener('click', () => {
-    if (!validateExport()) return;
-    exportCSV();
-    closeExportDropdown();
-  });
-  
-  elements.exportText?.addEventListener('click', () => {
-    if (!validateExport()) return;
-    exportText();
-    closeExportDropdown();
-  });
-  
-  elements.exportPDF?.addEventListener('click', () => {
-    if (!validateExport()) return;
-    exportPDF();
-    closeExportDropdown();
-  });
-  
+  // Export handlers - only HTML and ZIP
   elements.exportHTML?.addEventListener('click', () => {
     if (!validateExport()) return;
     exportHTML();
     closeExportDropdown();
   });
   
-  elements.exportJSON?.addEventListener('click', () => {
+  elements.exportZIP?.addEventListener('click', () => {
     if (!validateExport()) return;
-    exportJSON();
+    exportZIP();
     closeExportDropdown();
   });
   
