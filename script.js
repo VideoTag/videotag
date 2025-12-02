@@ -1931,16 +1931,12 @@ function generateHTMLContent() {
   // Get embed URL for direct playback
   let embedUrl = '';
   if (isYouTube) {
-    embedUrl = `https://www.youtube.com/embed/${state.currentVideoId}?enablejsapi=1&rel=0&modestbranding=1&origin=http://localhost:8000`;
+    embedUrl = `https://www.youtube.com/embed/${state.currentVideoId}?enablejsapi=1&rel=0`;
   } else if (isVimeo) {
-    embedUrl = `https://player.vimeo.com/video/${state.currentVideoId}?api=1`;
+    embedUrl = `https://player.vimeo.com/video/${state.currentVideoId}`;
   } else if (state.currentProvider === 'dailymotion') {
     embedUrl = `https://www.dailymotion.com/embed/video/${state.currentVideoId}`;
   }
-
-  const thumbnailUrl = isYouTube 
-    ? `https://img.youtube.com/vi/${state.currentVideoId}/maxresdefault.jpg`
-    : null;
   
   return `<!DOCTYPE html>
 <html lang="en">
@@ -1961,7 +1957,6 @@ function generateHTMLContent() {
       --muted: #5a5a70;
       --yellow: #fbbf24;
       --cyan: #22d3ee;
-      --green: #22c55e;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { 
@@ -1990,48 +1985,6 @@ function generateHTMLContent() {
       border-radius: 20px;
       margin: 0.25rem;
     }
-    .server-notice {
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(236, 72, 153, 0.1));
-      border: 1px solid rgba(99, 102, 241, 0.3);
-      border-radius: 12px;
-      padding: 1.25rem;
-      margin-bottom: 1.5rem;
-      display: none;
-    }
-    .server-notice.show { display: block; }
-    .server-notice h3 {
-      color: var(--primary-light);
-      margin-bottom: 0.75rem;
-      font-size: 1rem;
-    }
-    .server-notice p {
-      color: var(--text-secondary);
-      font-size: 0.875rem;
-      margin-bottom: 0.75rem;
-    }
-    .server-notice code {
-      display: block;
-      background: var(--bg);
-      padding: 0.75rem 1rem;
-      border-radius: 6px;
-      font-family: 'SF Mono', 'Fira Code', monospace;
-      font-size: 0.8rem;
-      color: var(--green);
-      margin: 0.5rem 0;
-      overflow-x: auto;
-    }
-    .server-notice .btn {
-      display: inline-block;
-      padding: 0.5rem 1rem;
-      background: var(--primary);
-      color: white;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 0.875rem;
-      margin-top: 0.5rem;
-    }
-    .server-notice .btn:hover { opacity: 0.9; }
     .video-section {
       background: var(--surface);
       border-radius: 16px;
@@ -2047,8 +2000,7 @@ function generateHTMLContent() {
       margin-bottom: 1rem;
       aspect-ratio: 16/9;
     }
-    .video-container iframe,
-    .video-container video {
+    .video-container iframe {
       position: absolute;
       top: 0;
       left: 0;
@@ -2056,50 +2008,6 @@ function generateHTMLContent() {
       height: 100%;
       border: none;
     }
-    .video-container img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-    .video-error-overlay {
-      position: absolute;
-      inset: 0;
-      background: rgba(0,0,0,0.85);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 2rem;
-      opacity: 0;
-      visibility: hidden;
-      transition: all 0.3s;
-    }
-    .video-error-overlay.show {
-      opacity: 1;
-      visibility: visible;
-    }
-    .video-error-overlay h3 {
-      color: var(--primary-light);
-      margin-bottom: 1rem;
-    }
-    .video-error-overlay p {
-      color: var(--text-secondary);
-      margin-bottom: 1rem;
-      font-size: 0.9rem;
-    }
-    .video-error-overlay a {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.75rem 1.5rem;
-      background: #ff0000;
-      color: white;
-      text-decoration: none;
-      border-radius: 8px;
-      font-weight: 600;
-    }
-    .video-error-overlay a:hover { opacity: 0.9; }
     .controls {
       display: flex;
       align-items: center;
@@ -2107,20 +2015,14 @@ function generateHTMLContent() {
       padding: 0.75rem;
       background: var(--surface-elevated);
       border-radius: 8px;
-      margin-bottom: 1rem;
     }
     .time-display {
       font-family: 'SF Mono', 'Fira Code', monospace;
       font-size: 1rem;
       min-width: 120px;
     }
-    .time-display .current {
-      font-weight: 700;
-      color: var(--primary-light);
-    }
+    .time-display .current { font-weight: 700; color: var(--primary-light); }
     .time-display .duration { color: var(--muted); }
-    
-    /* Timeline */
     .timeline {
       flex: 1;
       position: relative;
@@ -2143,12 +2045,9 @@ function generateHTMLContent() {
       background: linear-gradient(90deg, var(--primary), var(--secondary));
       border-radius: 3px;
       width: 0%;
-      transition: width 0.1s linear;
+      transition: width 0.1s;
     }
-    .timeline-markers {
-      position: absolute;
-      inset: 0;
-    }
+    .timeline-markers { position: absolute; inset: 0; }
     .timeline-marker {
       position: absolute;
       top: 50%;
@@ -2161,9 +2060,7 @@ function generateHTMLContent() {
       transition: transform 0.2s;
       z-index: 10;
     }
-    .timeline-marker:hover {
-      transform: translateY(-50%) scale(1.5);
-    }
+    .timeline-marker:hover { transform: translateY(-50%) scale(1.5); }
     .timeline-marker.reaction {
       background: var(--yellow);
       box-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
@@ -2187,41 +2084,8 @@ function generateHTMLContent() {
       visibility: hidden;
       transition: all 0.2s;
       pointer-events: none;
-      max-width: 200px;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
-    .timeline-marker:hover .tooltip {
-      opacity: 1;
-      visibility: visible;
-    }
-    
-    .seek-input {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    .seek-input input {
-      width: 70px;
-      padding: 0.5rem;
-      background: var(--bg);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 6px;
-      color: var(--text);
-      font-family: monospace;
-      font-size: 0.9rem;
-    }
-    .seek-input button {
-      padding: 0.5rem 1rem;
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      border: none;
-      border-radius: 6px;
-      color: white;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .seek-input button:hover { opacity: 0.9; }
-    
+    .timeline-marker:hover .tooltip { opacity: 1; visibility: visible; }
     .stats {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -2315,7 +2179,6 @@ function generateHTMLContent() {
       .comment { flex-direction: column; gap: 0.5rem; }
       .timestamp { align-self: flex-start; }
       .controls { flex-direction: column; }
-      .seek-input { width: 100%; justify-content: center; }
     }
   </style>
 </head>
@@ -2328,33 +2191,15 @@ function generateHTMLContent() {
       <span>💬 ${data.length} items</span>
     </p>
   </div>
-
-  <div class="server-notice" id="serverNotice">
-    <h3>⚠️ YouTube ne peut pas être lu depuis un fichier local</h3>
-    <p>Pour lire la vidéo directement sur cette page, vous devez lancer un serveur local. Ouvrez un terminal dans ce dossier et exécutez :</p>
-    <code>python -m http.server 8000</code>
-    <p>Puis ouvrez <a href="http://localhost:8000" style="color: var(--primary-light)">http://localhost:8000</a> dans votre navigateur.</p>
-    <p>Sinon, cliquez sur les timestamps pour ouvrir YouTube directement à ce moment.</p>
-    <button class="btn" onclick="this.parentElement.style.display='none'">Compris, fermer</button>
-  </div>
   
   <div class="video-section">
-    <div class="video-container" id="videoContainer">
-      ${thumbnailUrl ? `<img src="${thumbnailUrl}" alt="Video thumbnail" id="thumbnail">` : ''}
+    <div class="video-container">
       <iframe 
-        id="videoFrame"
+        id="player"
         src="${embedUrl}"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        allowfullscreen
-        style="${thumbnailUrl ? 'opacity: 0;' : ''}">
+        allowfullscreen>
       </iframe>
-      <div class="video-error-overlay" id="errorOverlay">
-        <h3>📺 Vidéo non disponible en local</h3>
-        <p>YouTube bloque la lecture depuis les fichiers locaux.<br>Cliquez ci-dessous pour regarder sur YouTube :</p>
-        <a href="https://www.youtube.com/watch?v=${state.currentVideoId}" target="_blank">
-          ▶ Ouvrir sur YouTube
-        </a>
-      </div>
     </div>
     
     <div class="controls">
@@ -2365,20 +2210,15 @@ function generateHTMLContent() {
       
       <div class="timeline" id="timeline">
         <div class="timeline-track">
-          <div class="timeline-progress" id="timelineProgress"></div>
+          <div class="timeline-progress" id="progress"></div>
         </div>
         <div class="timeline-markers">
           ${markers.map(m => `
-          <div class="timeline-marker ${m.type}" style="left: ${m.position}%" data-time="${m.timestamp}" data-index="${m.index}">
+          <div class="timeline-marker ${m.type}" style="left: ${m.position}%" data-time="${m.timestamp}">
             <div class="tooltip">[${m.time}] ${sanitizeHTML(m.text)}</div>
           </div>
           `).join('')}
         </div>
-      </div>
-      
-      <div class="seek-input">
-        <input type="text" id="seekInput" placeholder="0:00">
-        <button onclick="manualSeek()">Go</button>
       </div>
     </div>
   </div>
@@ -2399,35 +2239,22 @@ function generateHTMLContent() {
   </div>
 
   <h2>Comments & Reactions</h2>
-  <div class="comments-list" id="commentsList">
+  <div class="comments-list">
     ${data.map((d, i) => `
-    <div class="comment${d.type === 'reaction' ? ' reaction' : ''}" data-time="${d.timestamp}" data-index="${i}">
-      <button class="timestamp" onclick="seekTo(${d.timestamp})">[${d.time}]</button>
+    <div class="comment${d.type === 'reaction' ? ' reaction' : ''}" data-time="${d.timestamp}">
+      <button class="timestamp">[${d.time}]</button>
       <span class="text">${d.emoji ? `<span class="emoji">${d.emoji}</span>` : ''}${sanitizeHTML(d.text)}</span>
     </div>`).join('')}
   </div>
 
   <div class="footer">
-    <p>Exported from <strong>ReactVid</strong> — Video Reactions & Comments Tool</p>
+    <p>Exported from <strong>ReactVid</strong></p>
   </div>
 
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
-    let player;
-    let playerReady = false;
-    let isLocalFile = window.location.protocol === 'file:';
+    let ytPlayer;
     const duration = ${state.videoDuration};
-    const videoId = '${state.currentVideoId}';
-    const comments = document.querySelectorAll('.comment');
-    const markers = document.querySelectorAll('.timeline-marker');
-    const timeline = document.getElementById('timeline');
-    const timelineProgress = document.getElementById('timelineProgress');
-    const currentTimeEl = document.getElementById('currentTime');
-    const seekInput = document.getElementById('seekInput');
-    const errorOverlay = document.getElementById('errorOverlay');
-    const serverNotice = document.getElementById('serverNotice');
-    const thumbnail = document.getElementById('thumbnail');
-    const videoFrame = document.getElementById('videoFrame');
     
     function formatTime(sec) {
       if (!sec || isNaN(sec)) return '0:00';
@@ -2438,114 +2265,46 @@ function generateHTMLContent() {
       return h > 0 ? h + ':' + pad(m) + ':' + pad(s) : m + ':' + pad(s);
     }
     
-    function parseTime(str) {
-      if (!str) return 0;
-      const parts = str.split(':').map(Number);
-      if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
-      if (parts.length === 2) return parts[0] * 60 + parts[1];
-      return parseInt(str) || 0;
-    }
-
-    // Check if running from local file
-    if (isLocalFile) {
-      serverNotice.classList.add('show');
-      // Show error overlay after a delay (give iframe time to fail)
-      setTimeout(() => {
-        errorOverlay.classList.add('show');
-        if (thumbnail) thumbnail.style.opacity = '1';
-        if (videoFrame) videoFrame.style.display = 'none';
-      }, 2000);
-    }
-    
     function onYouTubeIframeAPIReady() {
-      if (isLocalFile) return; // Don't try to create player if local file
-      
-      player = new YT.Player('videoFrame', {
-        events: {
-          'onReady': onPlayerReady,
-          'onStateChange': onPlayerStateChange,
-          'onError': onPlayerError
-        }
+      ytPlayer = new YT.Player('player', {
+        events: { 'onReady': () => setInterval(updateUI, 500) }
       });
     }
     
-    function onPlayerReady(event) {
-      playerReady = true;
-      if (thumbnail) thumbnail.style.display = 'none';
-      if (videoFrame) videoFrame.style.opacity = '1';
-      setInterval(updateProgress, 500);
-    }
-
-    function onPlayerError(event) {
-      console.error('YouTube Player Error:', event.data);
-      errorOverlay.classList.add('show');
-      if (thumbnail) thumbnail.style.opacity = '1';
-    }
-    
-    function onPlayerStateChange(event) {}
-    
-    function updateProgress() {
-      if (!player || !player.getCurrentTime || !playerReady) return;
-      try {
-        const current = player.getCurrentTime();
-        const progress = (current / duration) * 100;
-        timelineProgress.style.width = progress + '%';
-        currentTimeEl.textContent = formatTime(current);
-        
-        // Highlight active comments
-        comments.forEach(c => {
-          const t = parseInt(c.dataset.time);
-          if (current >= t && current < t + 3) {
-            c.classList.add('active');
-          } else {
-            c.classList.remove('active');
-          }
-        });
-      } catch (e) {}
+    function updateUI() {
+      if (!ytPlayer || !ytPlayer.getCurrentTime) return;
+      const t = ytPlayer.getCurrentTime();
+      document.getElementById('currentTime').textContent = formatTime(t);
+      document.getElementById('progress').style.width = (t / duration * 100) + '%';
+      
+      document.querySelectorAll('.comment').forEach(c => {
+        const ct = parseInt(c.dataset.time);
+        c.classList.toggle('active', t >= ct && t < ct + 3);
+      });
     }
     
     function seekTo(time) {
-      if (playerReady && player && player.seekTo) {
-        player.seekTo(time, true);
-        player.playVideo();
-        document.querySelector('.video-section').scrollIntoView({ behavior: 'smooth' });
-      } else {
-        // Fallback: open YouTube at timestamp
-        window.open('https://www.youtube.com/watch?v=' + videoId + '&t=' + Math.floor(time) + 's', '_blank');
+      if (ytPlayer && ytPlayer.seekTo) {
+        ytPlayer.seekTo(time, true);
+        ytPlayer.playVideo();
       }
     }
     
-    function manualSeek() {
-      const time = parseTime(seekInput.value);
-      seekTo(time);
-    }
-    
-    // Click on timeline to seek
-    timeline.addEventListener('click', (e) => {
+    // Timeline click
+    document.getElementById('timeline').addEventListener('click', e => {
       if (e.target.closest('.timeline-marker')) return;
-      const rect = timeline.getBoundingClientRect();
-      const percent = (e.clientX - rect.left) / rect.width;
-      const time = percent * duration;
-      seekTo(time);
+      const rect = e.currentTarget.getBoundingClientRect();
+      seekTo(((e.clientX - rect.left) / rect.width) * duration);
     });
     
-    // Click on markers to seek
-    markers.forEach(m => {
-      m.addEventListener('click', () => {
-        seekTo(parseInt(m.dataset.time));
-      });
+    // Marker clicks
+    document.querySelectorAll('.timeline-marker').forEach(m => {
+      m.addEventListener('click', () => seekTo(parseInt(m.dataset.time)));
     });
     
-    // Click on comments to seek
-    comments.forEach(c => {
-      c.addEventListener('click', () => {
-        seekTo(parseInt(c.dataset.time));
-      });
-    });
-    
-    // Enter key on seek input
-    seekInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') manualSeek();
+    // Comment clicks
+    document.querySelectorAll('.comment').forEach(c => {
+      c.addEventListener('click', () => seekTo(parseInt(c.dataset.time)));
     });
   </script>
 </body>
@@ -2966,7 +2725,6 @@ async function exportZIP() {
     }
     
     // Add README
-    const isYouTubeExport = state.currentProvider === 'youtube' || state.currentProvider === 'youtube_shorts';
     const readme = `# ReactVid Export
 
 ## ${state.videoTitle}
@@ -2976,14 +2734,12 @@ async function exportZIP() {
 
 ## Files Included
 
-- \`index.html\` - Interactive HTML viewer with ${isLocalVideo ? 'local video player' : 'video link'}
+- \`index.html\` - Interactive HTML viewer with video player
 ${isLocalVideo ? `- \`${videoFileName}\` - The video file` : ''}
 - \`data.json\` - Complete data in JSON format
 - \`comments.csv\` - Spreadsheet-compatible format
 - \`comments.txt\` - Plain text format
 ${transcriptionState.transcript.length > 0 ? '- `transcript.srt` - Video transcript in SRT format' : ''}
-${isYouTubeExport ? `- \`start-server.bat\` - Windows: Double-click to start server
-- \`start-server.sh\` - Mac/Linux: Run to start server` : ''}
 
 ## Statistics
 
@@ -2993,67 +2749,17 @@ ${isYouTubeExport ? `- \`start-server.bat\` - Windows: Double-click to start ser
 
 ## Usage
 
-${isYouTubeExport ? `### For YouTube Videos (requires local server):
+1. Open \`index.html\` in any web browser
+2. Click timestamps to jump to that moment in the video
+3. Import \`data.json\` into other applications
+4. Open \`comments.csv\` in Excel or Google Sheets
 
-**Windows:**
-1. Double-click \`start-server.bat\`
-2. Open http://localhost:8000 in your browser
-
-**Mac/Linux:**
-1. Open Terminal in this folder
-2. Run: \`chmod +x start-server.sh && ./start-server.sh\`
-3. Open http://localhost:8000 in your browser
-
-**Alternative (any OS with Python):**
-1. Open terminal/command prompt in this folder
-2. Run: \`python -m http.server 8000\`
-3. Open http://localhost:8000 in your browser
-
-` : ''}${isLocalVideo ? `1. Extract all files to the same folder
-2. Open \`index.html\` in any web browser
-3. Click timestamps to jump to that moment in the video
-
-**Important:** Keep the video file in the same folder as index.html!
-` : `1. Open \`index.html\` in any web browser
-2. Click timestamps to seek in the video
-`}
-## Other Files
-
-- Import \`data.json\` into other applications
-- Open \`comments.csv\` in Excel, Google Sheets, or any spreadsheet app
+${isLocalVideo ? '**Note:** Keep the video file in the same folder as index.html!' : ''}
 
 ---
-*Exported with ReactVid - Video Reactions & Comments Tool*
+*Exported with ReactVid*
 `;
     folder.file('README.md', readme);
-
-    // Add server scripts for YouTube exports
-    if (isYouTubeExport) {
-      // Windows batch file
-      const batScript = `@echo off
-echo Starting local server for ReactVid export...
-echo.
-echo Open your browser to: http://localhost:8000
-echo.
-echo Press Ctrl+C to stop the server
-echo.
-python -m http.server 8000
-pause
-`;
-      folder.file('start-server.bat', batScript);
-
-      // Mac/Linux shell script
-      const shScript = `#!/bin/bash
-echo "Starting local server for ReactVid export..."
-echo ""
-echo "Open your browser to: http://localhost:8000"
-echo ""
-echo "Press Ctrl+C to stop the server"
-echo ""
-python3 -m http.server 8000 || python -m http.server 8000
-`;
-      folder.file('start-server.sh', shScript);
-    }
     
     // Generate ZIP
     showToast('Compressing files...', 'info');
