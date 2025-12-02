@@ -1907,15 +1907,36 @@ function getVideoWatchUrl() {
   }
 }
 
+// Generate timeline markers data for HTML export
+function getTimelineMarkersData() {
+  const data = getCommentsData();
+  const duration = state.videoDuration || 300;
+  return data.map((d, i) => ({
+    index: i,
+    timestamp: d.timestamp,
+    position: Math.min((d.timestamp / duration) * 100, 100),
+    type: d.type,
+    text: d.text.substring(0, 30) + (d.text.length > 30 ? '...' : ''),
+    time: d.time
+  }));
+}
+
+// Main HTML generator for online videos (YouTube, Vimeo, etc.)
 function generateHTMLContent() {
   const data = getCommentsData();
-  const watchUrl = getVideoWatchUrl();
+  const markers = getTimelineMarkersData();
   const isYouTube = state.currentProvider === 'youtube' || state.currentProvider === 'youtube_shorts';
+  const isVimeo = state.currentProvider === 'vimeo';
   
-  // For YouTube, use thumbnail + link instead of embed (embeds don't work in local HTML files)
-  const thumbnailUrl = isYouTube 
-    ? `https://img.youtube.com/vi/${state.currentVideoId}/maxresdefault.jpg`
-    : null;
+  // Get embed URL for direct playback
+  let embedUrl = '';
+  if (isYouTube) {
+    embedUrl = `https://www.youtube.com/embed/${state.currentVideoId}?enablejsapi=1&rel=0&modestbranding=1`;
+  } else if (isVimeo) {
+    embedUrl = `https://player.vimeo.com/video/${state.currentVideoId}?api=1`;
+  } else if (state.currentProvider === 'dailymotion') {
+    embedUrl = `https://www.dailymotion.com/embed/video/${state.currentVideoId}`;
+  }
   
   return `<!DOCTYPE html>
 <html lang="en">
@@ -1933,7 +1954,9 @@ function generateHTMLContent() {
       --surface-elevated: #151522;
       --text: #fff; 
       --text-secondary: #a0a0b8;
-      --muted: #5a5a70; 
+      --muted: #5a5a70;
+      --yellow: #fbbf24;
+      --cyan: #22d3ee;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { 
@@ -1942,13 +1965,10 @@ function generateHTMLContent() {
       color: var(--text); 
       line-height: 1.6; 
       padding: 2rem; 
-      max-width: 900px; 
+      max-width: 1000px; 
       margin: 0 auto; 
     }
-    .header {
-      text-align: center;
-      margin-bottom: 2rem;
-    }
+    .header { text-align: center; margin-bottom: 2rem; }
     h1 { 
       font-size: 2rem; 
       margin-bottom: 0.5rem; 
@@ -1957,11 +1977,7 @@ function generateHTMLContent() {
       -webkit-text-fill-color: transparent;
       background-clip: text;
     }
-    .meta { 
-      color: var(--muted); 
-      font-size: 0.875rem; 
-      margin-bottom: 1rem;
-    }
+    .meta { color: var(--muted); font-size: 0.875rem; margin-bottom: 1rem; }
     .meta span {
       display: inline-block;
       padding: 0.25rem 0.75rem;
@@ -1969,102 +1985,149 @@ function generateHTMLContent() {
       border-radius: 20px;
       margin: 0.25rem;
     }
-    .video-card { 
-      position: relative;
-      aspect-ratio: 16/9; 
-      background: #000; 
-      border-radius: 16px; 
-      overflow: hidden; 
-      margin-bottom: 2rem; 
-      max-width: 720px;
-      margin-left: auto;
-      margin-right: auto;
+    .video-section {
+      background: var(--surface);
+      border-radius: 16px;
+      padding: 1rem;
+      margin-bottom: 2rem;
       box-shadow: 0 8px 32px rgba(0,0,0,0.5);
     }
-    .video-card img {
+    .video-container { 
+      position: relative;
+      background: #000; 
+      border-radius: 12px; 
+      overflow: hidden;
+      margin-bottom: 1rem;
+      aspect-ratio: 16/9;
+    }
+    .video-container iframe,
+    .video-container video {
+      position: absolute;
+      top: 0;
+      left: 0;
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      border: none;
     }
-    .video-overlay {
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.75rem;
+      background: var(--surface-elevated);
+      border-radius: 8px;
+      margin-bottom: 1rem;
+    }
+    .time-display {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 1rem;
+      min-width: 120px;
+    }
+    .time-display .current {
+      font-weight: 700;
+      color: var(--primary-light);
+    }
+    .time-display .duration { color: var(--muted); }
+    
+    /* Timeline */
+    .timeline {
+      flex: 1;
+      position: relative;
+      height: 40px;
+      cursor: pointer;
+    }
+    .timeline-track {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 6px;
+      transform: translateY(-50%);
+      background: rgba(255,255,255,0.1);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .timeline-progress {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+      border-radius: 3px;
+      width: 0%;
+      transition: width 0.1s linear;
+    }
+    .timeline-markers {
       position: absolute;
       inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0,0,0,0.4);
-      transition: background 0.3s;
     }
-    .video-card:hover .video-overlay {
-      background: rgba(0,0,0,0.6);
-    }
-    .play-button {
-      width: 80px;
-      height: 80px;
-      background: var(--primary);
+    .timeline-marker {
+      position: absolute;
+      top: 50%;
+      width: 12px;
+      height: 12px;
+      margin-left: -6px;
+      transform: translateY(-50%);
       border-radius: 50%;
+      cursor: pointer;
+      transition: transform 0.2s;
+      z-index: 10;
+    }
+    .timeline-marker:hover {
+      transform: translateY(-50%) scale(1.5);
+    }
+    .timeline-marker.reaction {
+      background: var(--yellow);
+      box-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+    }
+    .timeline-marker.comment {
+      background: var(--cyan);
+      box-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
+    }
+    .timeline-marker .tooltip {
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 0.5rem 0.75rem;
+      background: var(--surface-elevated);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      font-size: 0.75rem;
+      white-space: nowrap;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.2s;
+      pointer-events: none;
+    }
+    .timeline-marker:hover .tooltip {
+      opacity: 1;
+      visibility: visible;
+    }
+    
+    .seek-input {
       display: flex;
       align-items: center;
-      justify-content: center;
-      margin-bottom: 1rem;
-      transition: transform 0.3s, box-shadow 0.3s;
-      box-shadow: 0 4px 20px rgba(99, 102, 241, 0.5);
+      gap: 0.5rem;
     }
-    .video-card:hover .play-button {
-      transform: scale(1.1);
-      box-shadow: 0 8px 30px rgba(99, 102, 241, 0.7);
+    .seek-input input {
+      width: 70px;
+      padding: 0.5rem;
+      background: var(--bg);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: monospace;
+      font-size: 0.9rem;
     }
-    .play-button svg {
-      width: 32px;
-      height: 32px;
-      fill: white;
-      margin-left: 4px;
-    }
-    .video-link {
-      color: white;
-      text-decoration: none;
-      font-weight: 600;
-      font-size: 1.1rem;
-      padding: 0.5rem 1.5rem;
-      background: rgba(255,255,255,0.1);
-      border-radius: 8px;
-      backdrop-filter: blur(10px);
-    }
-    .video-link:hover {
-      background: rgba(255,255,255,0.2);
-    }
-    .video-placeholder {
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: linear-gradient(135deg, var(--surface), var(--surface-elevated));
-      color: var(--text-secondary);
-      flex-direction: column;
-      gap: 1rem;
-      padding: 2rem;
-      text-align: center;
-    }
-    .video-placeholder svg {
-      width: 48px;
-      height: 48px;
-      opacity: 0.5;
-    }
-    .video-placeholder a {
-      color: var(--primary-light);
-      text-decoration: none;
-      padding: 0.75rem 1.5rem;
-      background: var(--primary);
-      border-radius: 8px;
+    .seek-input button {
+      padding: 0.5rem 1rem;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      border: none;
+      border-radius: 6px;
       color: white;
       font-weight: 600;
-      margin-top: 0.5rem;
+      cursor: pointer;
     }
-    .video-placeholder a:hover {
-      opacity: 0.9;
-    }
+    .seek-input button:hover { opacity: 0.9; }
+    
     .stats {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -2107,11 +2170,7 @@ function generateHTMLContent() {
       background: var(--primary);
       border-radius: 2px;
     }
-    .comments-list {
-      display: flex;
-      flex-direction: column;
-      gap: 0.75rem;
-    }
+    .comments-list { display: flex; flex-direction: column; gap: 0.75rem; }
     .comment { 
       display: flex; 
       gap: 1rem; 
@@ -2119,15 +2178,20 @@ function generateHTMLContent() {
       background: var(--surface); 
       border-radius: 12px; 
       border: 1px solid rgba(255,255,255,0.05);
-      transition: transform 0.2s, box-shadow 0.2s;
+      transition: all 0.2s;
+      cursor: pointer;
     }
     .comment:hover {
       transform: translateX(4px);
       box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      border-color: var(--primary);
     }
-    .comment.reaction { 
-      border-left: 3px solid #fbbf24; 
+    .comment.active {
+      border-color: var(--primary);
+      background: var(--surface-elevated);
+      box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
     }
+    .comment.reaction { border-left: 3px solid var(--yellow); }
     .timestamp { 
       padding: 0.35rem 0.75rem; 
       background: linear-gradient(135deg, var(--primary), var(--secondary));
@@ -2136,21 +2200,14 @@ function generateHTMLContent() {
       font-size: 0.8rem; 
       flex-shrink: 0;
       font-weight: 600;
-      cursor: pointer;
-      text-decoration: none;
       color: white;
+      border: none;
+      cursor: pointer;
+      transition: transform 0.2s;
     }
-    .timestamp:hover {
-      opacity: 0.9;
-    }
-    .text { 
-      flex: 1;
-      color: var(--text-secondary);
-    }
-    .emoji { 
-      font-size: 1.25rem; 
-      margin-right: 0.5rem; 
-    }
+    .timestamp:hover { transform: scale(1.05); }
+    .text { flex: 1; color: var(--text-secondary); }
+    .emoji { font-size: 1.25rem; margin-right: 0.5rem; }
     .footer {
       text-align: center;
       margin-top: 3rem;
@@ -2159,14 +2216,21 @@ function generateHTMLContent() {
       color: var(--muted);
       font-size: 0.875rem;
     }
-    .footer a {
-      color: var(--primary-light);
-      text-decoration: none;
+    .note {
+      background: rgba(99, 102, 241, 0.1);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      font-size: 0.875rem;
+      color: var(--text-secondary);
     }
     @media (max-width: 600px) {
       body { padding: 1rem; }
       .comment { flex-direction: column; gap: 0.5rem; }
       .timestamp { align-self: flex-start; }
+      .controls { flex-direction: column; }
+      .seek-input { width: 100%; justify-content: center; }
     }
   </style>
 </head>
@@ -2180,27 +2244,47 @@ function generateHTMLContent() {
     </p>
   </div>
   
-  ${watchUrl ? `
-  <a href="${watchUrl}" target="_blank" rel="noopener" class="video-card" style="display:block; text-decoration:none;">
-    ${thumbnailUrl ? `<img src="${thumbnailUrl}" alt="Video thumbnail" onerror="this.style.display='none'">` : ''}
-    <div class="video-overlay">
-      <div class="play-button">
-        <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-      </div>
-      <span class="video-link">▶ Watch on ${PROVIDER_NAMES[state.currentProvider]}</span>
+  <div class="video-section">
+    ${embedUrl ? `
+    <div class="video-container">
+      <iframe 
+        id="videoFrame"
+        src="${embedUrl}"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen>
+      </iframe>
     </div>
-  </a>
-  ` : `
-  <div class="video-card">
-    <div class="video-placeholder">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polygon points="5 3 19 12 5 21 5 3"></polygon>
-      </svg>
-      <p>Video preview not available</p>
-      ${state.originalVideoUrl ? `<a href="${state.originalVideoUrl}" target="_blank">Open Original Video</a>` : ''}
+    ` : `
+    <div class="note">
+      ⚠️ This video platform doesn't support embedding. Use the manual seek input to navigate.
+    </div>
+    `}
+    
+    <div class="controls">
+      <div class="time-display">
+        <span class="current" id="currentTime">0:00</span>
+        <span class="duration">/ ${formatTime(state.videoDuration)}</span>
+      </div>
+      
+      <div class="timeline" id="timeline">
+        <div class="timeline-track">
+          <div class="timeline-progress" id="timelineProgress"></div>
+        </div>
+        <div class="timeline-markers">
+          ${markers.map(m => `
+          <div class="timeline-marker ${m.type}" style="left: ${m.position}%" data-time="${m.timestamp}" data-index="${m.index}">
+            <div class="tooltip">[${m.time}] ${sanitizeHTML(m.text)}</div>
+          </div>
+          `).join('')}
+        </div>
+      </div>
+      
+      <div class="seek-input">
+        <input type="text" id="seekInput" placeholder="0:00">
+        <button onclick="manualSeek()">Go</button>
+      </div>
     </div>
   </div>
-  `}
 
   <div class="stats">
     <div class="stat">
@@ -2218,27 +2302,182 @@ function generateHTMLContent() {
   </div>
 
   <h2>Comments & Reactions</h2>
-  <div class="comments-list">
-    ${data.map(d => {
-      // Create timestamp link that opens YouTube at specific time
-      const timeLink = isYouTube 
-        ? `https://www.youtube.com/watch?v=${state.currentVideoId}&t=${d.timestamp}s`
-        : (state.currentProvider === 'vimeo' 
-          ? `https://vimeo.com/${state.currentVideoId}#t=${d.timestamp}s`
-          : watchUrl);
-      
-      return `
-    <div class="comment${d.type === 'reaction' ? ' reaction' : ''}">
-      <a href="${timeLink}" target="_blank" rel="noopener" class="timestamp" title="Watch at ${d.time}">[${d.time}]</a>
+  <div class="comments-list" id="commentsList">
+    ${data.map((d, i) => `
+    <div class="comment${d.type === 'reaction' ? ' reaction' : ''}" data-time="${d.timestamp}" data-index="${i}">
+      <button class="timestamp" onclick="seekTo(${d.timestamp})">[${d.time}]</button>
       <span class="text">${d.emoji ? `<span class="emoji">${d.emoji}</span>` : ''}${sanitizeHTML(d.text)}</span>
-    </div>`;
-    }).join('')}
+    </div>`).join('')}
   </div>
 
   <div class="footer">
     <p>Exported from <strong>ReactVid</strong> — Video Reactions & Comments Tool</p>
-    ${watchUrl ? `<p style="margin-top:0.5rem;"><a href="${watchUrl}" target="_blank">🔗 Watch full video on ${PROVIDER_NAMES[state.currentProvider]}</a></p>` : ''}
   </div>
+
+  ${isYouTube ? `
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script>
+    let player;
+    const duration = ${state.videoDuration};
+    const comments = document.querySelectorAll('.comment');
+    const markers = document.querySelectorAll('.timeline-marker');
+    const timeline = document.getElementById('timeline');
+    const timelineProgress = document.getElementById('timelineProgress');
+    const currentTimeEl = document.getElementById('currentTime');
+    const seekInput = document.getElementById('seekInput');
+    
+    function formatTime(sec) {
+      if (!sec || isNaN(sec)) return '0:00';
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = Math.floor(sec % 60);
+      const pad = n => n.toString().padStart(2, '0');
+      return h > 0 ? h + ':' + pad(m) + ':' + pad(s) : m + ':' + pad(s);
+    }
+    
+    function parseTime(str) {
+      if (!str) return 0;
+      const parts = str.split(':').map(Number);
+      if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+      if (parts.length === 2) return parts[0] * 60 + parts[1];
+      return parseInt(str) || 0;
+    }
+    
+    function onYouTubeIframeAPIReady() {
+      player = new YT.Player('videoFrame', {
+        events: {
+          'onReady': onPlayerReady,
+          'onStateChange': onPlayerStateChange
+        }
+      });
+    }
+    
+    function onPlayerReady(event) {
+      setInterval(updateProgress, 500);
+    }
+    
+    function onPlayerStateChange(event) {}
+    
+    function updateProgress() {
+      if (!player || !player.getCurrentTime) return;
+      const current = player.getCurrentTime();
+      const progress = (current / duration) * 100;
+      timelineProgress.style.width = progress + '%';
+      currentTimeEl.textContent = formatTime(current);
+      
+      // Highlight active comments
+      comments.forEach(c => {
+        const t = parseInt(c.dataset.time);
+        if (current >= t && current < t + 3) {
+          c.classList.add('active');
+        } else {
+          c.classList.remove('active');
+        }
+      });
+    }
+    
+    function seekTo(time) {
+      if (player && player.seekTo) {
+        player.seekTo(time, true);
+        player.playVideo();
+      }
+      // Scroll to video
+      document.querySelector('.video-section').scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    function manualSeek() {
+      const time = parseTime(seekInput.value);
+      seekTo(time);
+    }
+    
+    // Click on timeline to seek
+    timeline.addEventListener('click', (e) => {
+      if (e.target.closest('.timeline-marker')) return;
+      const rect = timeline.getBoundingClientRect();
+      const percent = (e.clientX - rect.left) / rect.width;
+      const time = percent * duration;
+      seekTo(time);
+    });
+    
+    // Click on markers to seek
+    markers.forEach(m => {
+      m.addEventListener('click', () => {
+        seekTo(parseInt(m.dataset.time));
+      });
+    });
+    
+    // Click on comments to seek
+    comments.forEach(c => {
+      c.addEventListener('click', () => {
+        seekTo(parseInt(c.dataset.time));
+      });
+    });
+    
+    // Enter key on seek input
+    seekInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') manualSeek();
+    });
+  </script>
+  ` : `
+  <script>
+    const duration = ${state.videoDuration};
+    const comments = document.querySelectorAll('.comment');
+    const markers = document.querySelectorAll('.timeline-marker');
+    const timeline = document.getElementById('timeline');
+    const seekInput = document.getElementById('seekInput');
+    let currentTime = 0;
+    
+    function formatTime(sec) {
+      if (!sec || isNaN(sec)) return '0:00';
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = Math.floor(sec % 60);
+      const pad = n => n.toString().padStart(2, '0');
+      return h > 0 ? h + ':' + pad(m) + ':' + pad(s) : m + ':' + pad(s);
+    }
+    
+    function parseTime(str) {
+      if (!str) return 0;
+      const parts = str.split(':').map(Number);
+      if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+      if (parts.length === 2) return parts[0] * 60 + parts[1];
+      return parseInt(str) || 0;
+    }
+    
+    function seekTo(time) {
+      currentTime = time;
+      document.getElementById('currentTime').textContent = formatTime(time);
+      document.getElementById('timelineProgress').style.width = (time / duration * 100) + '%';
+      
+      // For non-YouTube, reload iframe with timestamp
+      const iframe = document.getElementById('videoFrame');
+      if (iframe) {
+        let src = iframe.src.split('?')[0].split('#')[0];
+        ${isVimeo ? `src += '#t=' + time + 's';` : `src += '?start=' + Math.floor(time) + '&autoplay=1';`}
+        iframe.src = src;
+      }
+      
+      document.querySelector('.video-section').scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    function manualSeek() {
+      const time = parseTime(seekInput.value);
+      seekTo(time);
+    }
+    
+    // Click handlers
+    timeline.addEventListener('click', (e) => {
+      if (e.target.closest('.timeline-marker')) return;
+      const rect = timeline.getBoundingClientRect();
+      const percent = (e.clientX - rect.left) / rect.width;
+      seekTo(percent * duration);
+    });
+    
+    markers.forEach(m => m.addEventListener('click', () => seekTo(parseInt(m.dataset.time))));
+    comments.forEach(c => c.addEventListener('click', () => seekTo(parseInt(c.dataset.time))));
+    seekInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') manualSeek(); });
+  </script>
+  `}
 </body>
 </html>`;
 }
