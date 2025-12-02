@@ -1885,9 +1885,38 @@ function exportJSON() {
   showToast('Exported as JSON!', 'success');
 }
 
+function getYouTubeWatchUrl() {
+  if (state.currentProvider === 'youtube' || state.currentProvider === 'youtube_shorts') {
+    return `https://www.youtube.com/watch?v=${state.currentVideoId}`;
+  }
+  return null;
+}
+
+function getVideoWatchUrl() {
+  switch (state.currentProvider) {
+    case 'youtube':
+    case 'youtube_shorts':
+      return `https://www.youtube.com/watch?v=${state.currentVideoId}`;
+    case 'vimeo':
+      return `https://vimeo.com/${state.currentVideoId}`;
+    case 'dailymotion':
+      return `https://www.dailymotion.com/video/${state.currentVideoId}`;
+    case 'tiktok':
+      return state.originalVideoUrl || `https://www.tiktok.com/video/${state.currentVideoId}`;
+    default:
+      return state.originalVideoUrl || '';
+  }
+}
+
 function generateHTMLContent() {
   const data = getCommentsData();
-  const embedUrl = getVideoEmbedUrl();
+  const watchUrl = getVideoWatchUrl();
+  const isYouTube = state.currentProvider === 'youtube' || state.currentProvider === 'youtube_shorts';
+  
+  // For YouTube, use thumbnail + link instead of embed (embeds don't work in local HTML files)
+  const thumbnailUrl = isYouTube 
+    ? `https://img.youtube.com/vi/${state.currentVideoId}/maxresdefault.jpg`
+    : null;
   
   return `<!DOCTYPE html>
 <html lang="en">
@@ -1941,7 +1970,8 @@ function generateHTMLContent() {
       border-radius: 20px;
       margin: 0.25rem;
     }
-    .video { 
+    .video-card { 
+      position: relative;
       aspect-ratio: 16/9; 
       background: #000; 
       border-radius: 16px; 
@@ -1952,10 +1982,58 @@ function generateHTMLContent() {
       margin-right: auto;
       box-shadow: 0 8px 32px rgba(0,0,0,0.5);
     }
-    .video iframe { 
-      width: 100%; 
-      height: 100%; 
-      border: none; 
+    .video-card img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .video-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.4);
+      transition: background 0.3s;
+    }
+    .video-card:hover .video-overlay {
+      background: rgba(0,0,0,0.6);
+    }
+    .play-button {
+      width: 80px;
+      height: 80px;
+      background: var(--primary);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1rem;
+      transition: transform 0.3s, box-shadow 0.3s;
+      box-shadow: 0 4px 20px rgba(99, 102, 241, 0.5);
+    }
+    .video-card:hover .play-button {
+      transform: scale(1.1);
+      box-shadow: 0 8px 30px rgba(99, 102, 241, 0.7);
+    }
+    .play-button svg {
+      width: 32px;
+      height: 32px;
+      fill: white;
+      margin-left: 4px;
+    }
+    .video-link {
+      color: white;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 1.1rem;
+      padding: 0.5rem 1.5rem;
+      background: rgba(255,255,255,0.1);
+      border-radius: 8px;
+      backdrop-filter: blur(10px);
+    }
+    .video-link:hover {
+      background: rgba(255,255,255,0.2);
     }
     .video-placeholder {
       width: 100%;
@@ -1967,11 +2045,26 @@ function generateHTMLContent() {
       color: var(--text-secondary);
       flex-direction: column;
       gap: 1rem;
+      padding: 2rem;
+      text-align: center;
     }
     .video-placeholder svg {
       width: 48px;
       height: 48px;
       opacity: 0.5;
+    }
+    .video-placeholder a {
+      color: var(--primary-light);
+      text-decoration: none;
+      padding: 0.75rem 1.5rem;
+      background: var(--primary);
+      border-radius: 8px;
+      color: white;
+      font-weight: 600;
+      margin-top: 0.5rem;
+    }
+    .video-placeholder a:hover {
+      opacity: 0.9;
     }
     .stats {
       display: grid;
@@ -2045,6 +2138,11 @@ function generateHTMLContent() {
       flex-shrink: 0;
       font-weight: 600;
       cursor: pointer;
+      text-decoration: none;
+      color: white;
+    }
+    .timestamp:hover {
+      opacity: 0.9;
     }
     .text { 
       flex: 1;
@@ -2083,15 +2181,27 @@ function generateHTMLContent() {
     </p>
   </div>
   
-  <div class="video">
-    ${embedUrl ? `<iframe src="${embedUrl}" allowfullscreen allow="autoplay; fullscreen; picture-in-picture"></iframe>` : `
+  ${watchUrl ? `
+  <a href="${watchUrl}" target="_blank" rel="noopener" class="video-card" style="display:block; text-decoration:none;">
+    ${thumbnailUrl ? `<img src="${thumbnailUrl}" alt="Video thumbnail" onerror="this.style.display='none'">` : ''}
+    <div class="video-overlay">
+      <div class="play-button">
+        <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+      </div>
+      <span class="video-link">▶ Watch on ${PROVIDER_NAMES[state.currentProvider]}</span>
+    </div>
+  </a>
+  ` : `
+  <div class="video-card">
     <div class="video-placeholder">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polygon points="5 3 19 12 5 21 5 3"></polygon>
       </svg>
       <p>Video preview not available</p>
-    </div>`}
+      ${state.originalVideoUrl ? `<a href="${state.originalVideoUrl}" target="_blank">Open Original Video</a>` : ''}
+    </div>
   </div>
+  `}
 
   <div class="stats">
     <div class="stat">
@@ -2110,30 +2220,26 @@ function generateHTMLContent() {
 
   <h2>Comments & Reactions</h2>
   <div class="comments-list">
-    ${data.map(d => `
-    <div class="comment${d.type === 'reaction' ? ' reaction' : ''}" data-time="${d.timestamp}">
-      <span class="timestamp" onclick="seekTo(${d.timestamp})">[${d.time}]</span>
+    ${data.map(d => {
+      // Create timestamp link that opens YouTube at specific time
+      const timeLink = isYouTube 
+        ? `https://www.youtube.com/watch?v=${state.currentVideoId}&t=${d.timestamp}s`
+        : (state.currentProvider === 'vimeo' 
+          ? `https://vimeo.com/${state.currentVideoId}#t=${d.timestamp}s`
+          : watchUrl);
+      
+      return `
+    <div class="comment${d.type === 'reaction' ? ' reaction' : ''}">
+      <a href="${timeLink}" target="_blank" rel="noopener" class="timestamp" title="Watch at ${d.time}">[${d.time}]</a>
       <span class="text">${d.emoji ? `<span class="emoji">${d.emoji}</span>` : ''}${sanitizeHTML(d.text)}</span>
-    </div>`).join('')}
+    </div>`;
+    }).join('')}
   </div>
 
   <div class="footer">
     <p>Exported from <strong>ReactVid</strong> — Video Reactions & Comments Tool</p>
+    ${watchUrl ? `<p style="margin-top:0.5rem;"><a href="${watchUrl}" target="_blank">🔗 Watch full video on ${PROVIDER_NAMES[state.currentProvider]}</a></p>` : ''}
   </div>
-
-  <script>
-    function seekTo(seconds) {
-      const iframe = document.querySelector('iframe');
-      if (iframe) {
-        const src = iframe.src;
-        if (src.includes('youtube.com')) {
-          iframe.src = src.split('?')[0] + '?start=' + seconds + '&autoplay=1';
-        } else if (src.includes('vimeo.com')) {
-          iframe.src = src.split('#')[0] + '#t=' + seconds + 's';
-        }
-      }
-    }
-  </script>
 </body>
 </html>`;
 }
@@ -2169,8 +2275,21 @@ async function exportZIP() {
     const folderName = sanitizeFileName(state.videoTitle) || 'reactvid_export';
     const folder = zip.folder(folderName);
     
-    // Add HTML file with embedded video
-    const htmlContent = generateHTMLContent();
+    // For local uploads, include the video file
+    let videoFileName = null;
+    const isLocalVideo = state.currentProvider === 'upload' && state.uploadedVideo;
+    
+    if (isLocalVideo) {
+      showToast('Adding video to ZIP (this may take a moment)...', 'info');
+      videoFileName = sanitizeFileName(state.uploadedVideo.name) || 'video.mp4';
+      
+      // Add video file to ZIP
+      const videoData = await state.uploadedVideo.arrayBuffer();
+      folder.file(videoFileName, videoData);
+    }
+    
+    // Add HTML file with embedded video (use local file for uploads)
+    const htmlContent = generateHTMLContentForZIP(videoFileName);
     folder.file('index.html', htmlContent);
     
     // Add JSON data
@@ -2181,6 +2300,7 @@ async function exportZIP() {
         id: state.currentVideoId,
         url: state.originalVideoUrl || getVideoEmbedUrl(),
         duration: state.videoDuration,
+        localFile: videoFileName || null,
       },
       exportDate: new Date().toISOString(),
       exportVersion: '4.0.0',
@@ -2242,7 +2362,8 @@ async function exportZIP() {
 
 ## Files Included
 
-- \`index.html\` - Interactive HTML viewer with embedded video
+- \`index.html\` - Interactive HTML viewer with ${isLocalVideo ? 'local video player' : 'video link'}
+${isLocalVideo ? `- \`${videoFileName}\` - The video file` : ''}
 - \`data.json\` - Complete data in JSON format
 - \`comments.csv\` - Spreadsheet-compatible format
 - \`comments.txt\` - Plain text format
@@ -2256,10 +2377,12 @@ ${transcriptionState.transcript.length > 0 ? '- `transcript.srt` - Video transcr
 
 ## Usage
 
-1. Open \`index.html\` in any web browser to view your comments with the embedded video
-2. Import \`data.json\` into other applications
-3. Open \`comments.csv\` in Excel, Google Sheets, or any spreadsheet app
-4. Use \`comments.txt\` for simple text editing
+1. ${isLocalVideo ? 'Extract all files to the same folder, then open' : 'Open'} \`index.html\` in any web browser
+2. ${isLocalVideo ? 'Click timestamps to jump to that moment in the video' : 'Click timestamps to open the video at that time'}
+3. Import \`data.json\` into other applications
+4. Open \`comments.csv\` in Excel, Google Sheets, or any spreadsheet app
+
+${isLocalVideo ? '**Important:** Keep the video file in the same folder as index.html for it to work!' : ''}
 
 ---
 *Exported with ReactVid - Video Reactions & Comments Tool*
@@ -2267,10 +2390,19 @@ ${transcriptionState.transcript.length > 0 ? '- `transcript.srt` - Video transcr
     folder.file('README.md', readme);
     
     // Generate ZIP
+    showToast('Compressing files...', 'info');
     const content = await zip.generateAsync({ 
       type: 'blob',
       compression: 'DEFLATE',
       compressionOptions: { level: 6 }
+    }, (metadata) => {
+      // Progress callback
+      if (metadata.percent) {
+        const percent = Math.round(metadata.percent);
+        if (percent % 20 === 0) {
+          console.log(`ZIP progress: ${percent}%`);
+        }
+      }
     });
     
     downloadBlob(content, `${folderName}.zip`);
@@ -2278,8 +2410,372 @@ ${transcriptionState.transcript.length > 0 ? '- `transcript.srt` - Video transcr
     
   } catch (error) {
     console.error('ZIP export error:', error);
-    showToast('Failed to create ZIP package', 'error');
+    showToast('Failed to create ZIP package: ' + error.message, 'error');
   }
+}
+
+// Generate HTML specifically for ZIP export (with local video support)
+function generateHTMLContentForZIP(localVideoFile = null) {
+  const data = getCommentsData();
+  const watchUrl = getVideoWatchUrl();
+  const isYouTube = state.currentProvider === 'youtube' || state.currentProvider === 'youtube_shorts';
+  const isLocalVideo = localVideoFile !== null;
+  
+  const thumbnailUrl = isYouTube 
+    ? `https://img.youtube.com/vi/${state.currentVideoId}/maxresdefault.jpg`
+    : null;
+  
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${sanitizeHTML(state.videoTitle)} - ReactVid Export</title>
+  <style>
+    :root { 
+      --primary: #6366f1; 
+      --primary-light: #818cf8;
+      --secondary: #ec4899;
+      --bg: #05050a; 
+      --surface: #0f0f1a; 
+      --surface-elevated: #151522;
+      --text: #fff; 
+      --text-secondary: #a0a0b8;
+      --muted: #5a5a70; 
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: 'Segoe UI', system-ui, sans-serif; 
+      background: var(--bg); 
+      color: var(--text); 
+      line-height: 1.6; 
+      padding: 2rem; 
+      max-width: 900px; 
+      margin: 0 auto; 
+    }
+    .header { text-align: center; margin-bottom: 2rem; }
+    h1 { 
+      font-size: 2rem; 
+      margin-bottom: 0.5rem; 
+      background: linear-gradient(135deg, #6366f1, #ec4899); 
+      -webkit-background-clip: text; 
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .meta { color: var(--muted); font-size: 0.875rem; margin-bottom: 1rem; }
+    .meta span {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      background: var(--surface);
+      border-radius: 20px;
+      margin: 0.25rem;
+    }
+    .video-container { 
+      background: #000; 
+      border-radius: 16px; 
+      overflow: hidden; 
+      margin-bottom: 2rem; 
+      max-width: 720px;
+      margin-left: auto;
+      margin-right: auto;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .video-container video {
+      width: 100%;
+      display: block;
+      max-height: 70vh;
+    }
+    .video-card { 
+      position: relative;
+      aspect-ratio: 16/9; 
+      background: #000; 
+      border-radius: 16px; 
+      overflow: hidden; 
+      margin-bottom: 2rem; 
+      max-width: 720px;
+      margin-left: auto;
+      margin-right: auto;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      display: block;
+      text-decoration: none;
+    }
+    .video-card img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .video-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.4);
+      transition: background 0.3s;
+    }
+    .video-card:hover .video-overlay { background: rgba(0,0,0,0.6); }
+    .play-button {
+      width: 80px;
+      height: 80px;
+      background: var(--primary);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1rem;
+      transition: transform 0.3s, box-shadow 0.3s;
+      box-shadow: 0 4px 20px rgba(99, 102, 241, 0.5);
+    }
+    .video-card:hover .play-button {
+      transform: scale(1.1);
+      box-shadow: 0 8px 30px rgba(99, 102, 241, 0.7);
+    }
+    .play-button svg { width: 32px; height: 32px; fill: white; margin-left: 4px; }
+    .video-link {
+      color: white;
+      font-weight: 600;
+      font-size: 1.1rem;
+      padding: 0.5rem 1.5rem;
+      background: rgba(255,255,255,0.1);
+      border-radius: 8px;
+      backdrop-filter: blur(10px);
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .stat {
+      padding: 1.25rem;
+      background: var(--surface);
+      border-radius: 12px;
+      text-align: center;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    .stat-value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    h2 {
+      font-size: 1.25rem;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    h2::before {
+      content: '';
+      display: block;
+      width: 4px;
+      height: 24px;
+      background: var(--primary);
+      border-radius: 2px;
+    }
+    .comments-list { display: flex; flex-direction: column; gap: 0.75rem; }
+    .comment { 
+      display: flex; 
+      gap: 1rem; 
+      padding: 1rem 1.25rem; 
+      background: var(--surface); 
+      border-radius: 12px; 
+      border: 1px solid rgba(255,255,255,0.05);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .comment:hover {
+      transform: translateX(4px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    }
+    .comment.reaction { border-left: 3px solid #fbbf24; }
+    .timestamp { 
+      padding: 0.35rem 0.75rem; 
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      border-radius: 8px; 
+      font-family: 'SF Mono', 'Fira Code', monospace; 
+      font-size: 0.8rem; 
+      flex-shrink: 0;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      color: white;
+      border: none;
+    }
+    .timestamp:hover { opacity: 0.9; transform: scale(1.05); }
+    .text { flex: 1; color: var(--text-secondary); }
+    .emoji { font-size: 1.25rem; margin-right: 0.5rem; }
+    .footer {
+      text-align: center;
+      margin-top: 3rem;
+      padding-top: 2rem;
+      border-top: 1px solid rgba(255,255,255,0.05);
+      color: var(--muted);
+      font-size: 0.875rem;
+    }
+    .footer a { color: var(--primary-light); text-decoration: none; }
+    .current-time-display {
+      text-align: center;
+      padding: 0.5rem;
+      background: var(--surface);
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      font-family: monospace;
+      font-size: 1.2rem;
+      color: var(--primary-light);
+    }
+    @media (max-width: 600px) {
+      body { padding: 1rem; }
+      .comment { flex-direction: column; gap: 0.5rem; }
+      .timestamp { align-self: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>${sanitizeHTML(state.videoTitle)}</h1>
+    <p class="meta">
+      <span>📺 ${PROVIDER_NAMES[state.currentProvider]}</span>
+      <span>📅 ${new Date().toLocaleDateString()}</span>
+      <span>💬 ${data.length} items</span>
+    </p>
+  </div>
+  
+  ${isLocalVideo ? `
+  <!-- Local Video Player -->
+  <div class="video-container">
+    <video id="videoPlayer" controls>
+      <source src="${localVideoFile}" type="${state.uploadedVideo?.type || 'video/mp4'}">
+      Your browser does not support the video tag.
+    </video>
+  </div>
+  <div class="current-time-display">Current: <span id="currentTime">0:00</span> / ${formatTime(state.videoDuration)}</div>
+  ` : (watchUrl ? `
+  <!-- Online Video Link -->
+  <a href="${watchUrl}" target="_blank" rel="noopener" class="video-card">
+    ${thumbnailUrl ? `<img src="${thumbnailUrl}" alt="Video thumbnail" onerror="this.style.display='none'">` : ''}
+    <div class="video-overlay">
+      <div class="play-button">
+        <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+      </div>
+      <span class="video-link">▶ Watch on ${PROVIDER_NAMES[state.currentProvider]}</span>
+    </div>
+  </a>
+  ` : `
+  <div class="video-card">
+    <div class="video-overlay" style="background: linear-gradient(135deg, var(--surface), var(--surface-elevated));">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:48px;height:48px;opacity:0.5;margin-bottom:1rem;">
+        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+      </svg>
+      <p>Video not available</p>
+    </div>
+  </div>
+  `)}
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-value">${data.filter(d => d.type === 'comment').length}</div>
+      <div class="stat-label">Comments</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">${data.filter(d => d.type === 'reaction').length}</div>
+      <div class="stat-label">Reactions</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">${formatTime(state.videoDuration)}</div>
+      <div class="stat-label">Duration</div>
+    </div>
+  </div>
+
+  <h2>Comments & Reactions</h2>
+  <div class="comments-list">
+    ${data.map(d => {
+      const timeLink = isYouTube 
+        ? `https://www.youtube.com/watch?v=${state.currentVideoId}&t=${d.timestamp}s`
+        : (state.currentProvider === 'vimeo' 
+          ? `https://vimeo.com/${state.currentVideoId}#t=${d.timestamp}s`
+          : watchUrl);
+      
+      if (isLocalVideo) {
+        return `
+    <div class="comment${d.type === 'reaction' ? ' reaction' : ''}">
+      <button class="timestamp" onclick="seekTo(${d.timestamp})" title="Jump to ${d.time}">[${d.time}]</button>
+      <span class="text">${d.emoji ? `<span class="emoji">${d.emoji}</span>` : ''}${sanitizeHTML(d.text)}</span>
+    </div>`;
+      } else {
+        return `
+    <div class="comment${d.type === 'reaction' ? ' reaction' : ''}">
+      <a href="${timeLink || '#'}" target="_blank" rel="noopener" class="timestamp" title="Watch at ${d.time}">[${d.time}]</a>
+      <span class="text">${d.emoji ? `<span class="emoji">${d.emoji}</span>` : ''}${sanitizeHTML(d.text)}</span>
+    </div>`;
+      }
+    }).join('')}
+  </div>
+
+  <div class="footer">
+    <p>Exported from <strong>ReactVid</strong> — Video Reactions & Comments Tool</p>
+    ${!isLocalVideo && watchUrl ? `<p style="margin-top:0.5rem;"><a href="${watchUrl}" target="_blank">🔗 Watch full video on ${PROVIDER_NAMES[state.currentProvider]}</a></p>` : ''}
+  </div>
+
+  ${isLocalVideo ? `
+  <script>
+    const video = document.getElementById('videoPlayer');
+    const currentTimeDisplay = document.getElementById('currentTime');
+    
+    // Format seconds to MM:SS or HH:MM:SS
+    function formatTime(seconds) {
+      if (!seconds || isNaN(seconds)) return '0:00';
+      const hrs = Math.floor(seconds / 3600);
+      const mins = Math.floor((seconds % 3600) / 60);
+      const secs = Math.floor(seconds % 60);
+      const pad = n => n.toString().padStart(2, '0');
+      return hrs > 0 ? hrs + ':' + pad(mins) + ':' + pad(secs) : mins + ':' + pad(secs);
+    }
+    
+    // Update current time display
+    video.addEventListener('timeupdate', function() {
+      currentTimeDisplay.textContent = formatTime(video.currentTime);
+    });
+    
+    // Seek to specific time
+    function seekTo(seconds) {
+      video.currentTime = seconds;
+      video.play();
+      
+      // Scroll video into view
+      video.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    
+    // Highlight current comment based on video time
+    video.addEventListener('timeupdate', function() {
+      const currentTime = video.currentTime;
+      document.querySelectorAll('.comment').forEach(comment => {
+        const btn = comment.querySelector('.timestamp');
+        if (btn) {
+          const time = parseInt(btn.getAttribute('onclick').match(/\\d+/)[0]);
+          if (Math.abs(currentTime - time) < 2) {
+            comment.style.borderColor = 'var(--primary)';
+            comment.style.background = 'var(--surface-elevated)';
+          } else {
+            comment.style.borderColor = '';
+            comment.style.background = '';
+          }
+        }
+      });
+    });
+  </script>
+  ` : ''}
+</body>
+</html>`;
 }
 
 // ============================================
