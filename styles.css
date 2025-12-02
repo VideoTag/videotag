@@ -1,4 +1,9 @@
 /* ----------------------------------------
+   ReactVid - Video Reactions & Comments
+   Version 4.0.0
+   ---------------------------------------- */
+
+/* ----------------------------------------
    1. CSS Custom Properties
    ---------------------------------------- */
 :root {
@@ -822,7 +827,7 @@ body {
   text-overflow: ellipsis;
 }
 
-/* Video Container - All Aspect Ratios */
+/* Video Container */
 .video-container {
   position: relative;
   background: #000;
@@ -888,6 +893,10 @@ body {
 .embed-wrapper.vertical-embed iframe {
   max-width: 400px;
   border-radius: var(--radius-lg);
+}
+
+.embed-wrapper.facebook-embed {
+  background: #000;
 }
 
 .embed-wrapper.facebook-embed iframe {
@@ -1094,8 +1103,7 @@ body {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: var(--space-4);
-  /* CRITICAL FIX: Allow dropdowns to overflow */
-  overflow: visible;
+  position: relative;
 }
 
 .stat-card {
@@ -1107,8 +1115,6 @@ body {
   border: 1px solid rgba(255,255,255,0.06);
   border-radius: var(--radius-xl);
   transition: var(--transition-base);
-  /* CRITICAL FIX: Allow children to overflow */
-  overflow: visible;
   position: relative;
 }
 
@@ -1152,28 +1158,15 @@ body {
   color: var(--color-primary-light);
 }
 
-/* CRITICAL FIX: Export stat card needs special handling */
+/* Export stat card - CRITICAL FIX */
 .stat-card--export {
   overflow: visible;
-  position: relative;
   z-index: 1;
-}
-
-/* When dropdown is open, raise the entire card's z-index */
-.stat-card--export:has(.export-dropdown.open) {
-  z-index: var(--z-dropdown);
-}
-
-/* Fallback for browsers without :has() support */
-.stat-card--export:focus-within {
-  z-index: var(--z-dropdown);
 }
 
 .stat-card__content {
   flex: 1;
   min-width: 0;
-  /* CRITICAL FIX: Allow content to overflow */
-  overflow: visible;
 }
 
 .stat-card__value {
@@ -1195,12 +1188,6 @@ body {
    ---------------------------------------- */
 .export-dropdown {
   position: relative;
-  /* Ensure proper stacking context */
-  z-index: 1;
-}
-
-.export-dropdown.open {
-  z-index: var(--z-dropdown);
 }
 
 .export-dropdown__trigger {
@@ -1234,12 +1221,10 @@ body {
   transform: rotate(180deg);
 }
 
+/* Menu positioned ABOVE the button */
 .export-dropdown__menu {
-  position: absolute;
-  /* CRITICAL FIX: Position menu above the button instead of below */
-  bottom: calc(100% + 8px);
-  right: 0;
-  min-width: 200px;
+  position: fixed;
+  min-width: 220px;
   background: var(--color-surface-elevated);
   border: 1px solid rgba(255,255,255,0.15);
   border-radius: var(--radius-lg);
@@ -1248,16 +1233,29 @@ body {
   visibility: hidden;
   transform: translateY(10px);
   transition: var(--transition-base);
-  /* CRITICAL FIX: Very high z-index to escape all containers */
   z-index: 9999;
-  /* CRITICAL FIX: Add shadow for better visibility */
   box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.1);
 }
 
+/* Position the menu dynamically via JS fallback - CSS positions it above */
 .export-dropdown.open .export-dropdown__menu {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);
+  bottom: auto;
+  top: auto;
+}
+
+/* Alternative: use absolute positioning relative to trigger */
+.export-dropdown {
+  position: relative;
+}
+
+.export-dropdown .export-dropdown__menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  left: auto;
 }
 
 .export-dropdown__item {
@@ -1284,6 +1282,18 @@ body {
 
 .export-dropdown__icon {
   font-size: var(--text-base);
+  width: 24px;
+  text-align: center;
+}
+
+.export-dropdown__badge {
+  margin-left: auto;
+  padding: 2px 6px;
+  background: var(--gradient-primary);
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
 /* ----------------------------------------
@@ -1847,16 +1857,32 @@ body {
   border-color: rgba(16, 185, 129, 0.3);
 }
 
+.toast--success .toast__icon {
+  color: var(--color-accent-green);
+}
+
 .toast--error {
   border-color: rgba(239, 68, 68, 0.3);
+}
+
+.toast--error .toast__icon {
+  color: var(--color-accent-red);
 }
 
 .toast--info {
   border-color: rgba(99, 102, 241, 0.3);
 }
 
+.toast--info .toast__icon {
+  color: var(--color-primary-light);
+}
+
 .toast--warning {
   border-color: rgba(251, 191, 36, 0.3);
+}
+
+.toast--warning .toast__icon {
+  color: var(--color-accent-yellow);
 }
 
 .toast__icon {
@@ -1981,6 +2007,22 @@ body {
   
   .embed-wrapper.vertical-embed {
     padding: var(--space-2);
+  }
+  
+  /* Mobile dropdown - show below instead */
+  .export-dropdown .export-dropdown__menu {
+    position: fixed;
+    bottom: auto;
+    top: 50%;
+    left: 50%;
+    right: auto;
+    transform: translate(-50%, -50%);
+    width: calc(100% - 2rem);
+    max-width: 280px;
+  }
+  
+  .export-dropdown.open .export-dropdown__menu {
+    transform: translate(-50%, -50%);
   }
 }
 

@@ -1,14 +1,10 @@
-
-
-
-
 /**
  * ReactVid - Video Reactions & Comments Application
  * 
  * A premium application for adding timestamped reactions
  * and comments to videos from multiple platforms.
  * 
- * @version 3.4.0 - Added transcription, fixed Facebook sizing
+ * @version 4.0.0 - Added ZIP export, fixed exports, improved video embeds
  */
 
 // ============================================
@@ -33,10 +29,12 @@ const VIDEO_PATTERNS = {
   tiktok: [
     /tiktok\.com\/@[^\/]+\/video\/(\d+)/i,
     /vm\.tiktok\.com\/([^\/]+)/i,
+    /tiktok\.com\/.*?\/video\/(\d+)/i,
   ],
   vimeo: [
     /vimeo\.com\/([0-9]+)/i,
     /vimeo\.com\/channels\/[^\/]+\/([0-9]+)/i,
+    /player\.vimeo\.com\/video\/([0-9]+)/i,
   ],
   dailymotion: [
     /dailymotion\.com\/video\/([a-zA-Z0-9]+)/i,
@@ -50,10 +48,12 @@ const VIDEO_PATTERNS = {
     /facebook\.com\/[^\/]+\/videos\/(\d+)/i,
     /facebook\.com\/watch\/\?v=(\d+)/i,
     /fb\.watch\/([a-zA-Z0-9_-]+)/i,
+    /facebook\.com\/.*?\/videos\/(\d+)/i,
   ],
   instagram: [
     /instagram\.com\/p\/([a-zA-Z0-9_-]+)/i,
     /instagram\.com\/reel\/([a-zA-Z0-9_-]+)/i,
+    /instagram\.com\/reels\/([a-zA-Z0-9_-]+)/i,
   ],
   odysee: [
     /odysee\.com\/@[^\/]+\/([^\/\?]+)/i,
@@ -110,6 +110,7 @@ const state = {
   videoDuration: 300,
   useIframeApi: false,
   videoAspectRatio: null,
+  originalVideoUrl: null,
 };
 
 // Transcription state
@@ -135,19 +136,21 @@ function cacheElements() {
     'commentsList', 'loadingSpinner', 'reactionModal', 'selectedEmoji',
     'selectedEmojiInput', 'reactionText', 'closeReactionModal', 'submitReaction',
     'cancelReaction', 'exportCSV', 'exportText', 'exportPDF', 'exportHTML',
-    'exportJSON', 'videoUpload', 'uploadedFileInfo', 'uploadedFileName',
+    'exportJSON', 'exportZIP', 'videoUpload', 'uploadedFileInfo', 'uploadedFileName',
     'uploadedFileSize', 'timelineProgress', 'timelineMarkers',
     'statsPanel', 'reactionSummary', 'reactionSummarySection', 'videoPanel',
     'commentsEmpty', 'totalCommentsValue', 'totalReactionsValue', 'avgTimeValue',
     'videoPlatform', 'videoTitleDisplay', 'currentTimeDisplay', 'timelineCurrent',
     'timelineDuration', 'modalTimestamp', 'charCount', 'exportDropdownBtn',
-    'exportDropdownMenu', 'pasteBtn', 'removeFile', 'addCommentBtn',
+    'exportDropdownMenu', 'exportDropdown', 'pasteBtn', 'removeFile', 'addCommentBtn',
     'commentModal', 'closeCommentModal', 'commentText', 'commentModalTimestamp',
     'commentCharCount', 'submitComment', 'cancelComment', 'sortCommentsBtn',
     'clearAllBtn', 'confirmModal', 'confirmCancel', 'confirmOk', 'toastContainer',
     'timeline', 'uploadBtn', 'detectedPlatform', 'detectedIcon', 'detectedName',
     'featuresSection', 'changeVideoBtn', 'commentsSection', 'transcribeBtn',
-    'transcriptSection', 'transcriptList', 'transcriptEmpty',
+    'transcriptSection', 'transcriptList', 'transcriptEmpty', 'transcriptCount',
+    'importTranscriptBtn', 'copyTranscriptBtn', 'exportTranscriptBtn',
+    'addAllTranscriptBtn', 'clearTranscriptBtn',
   ];
 
   ids.forEach(id => {
@@ -188,7 +191,7 @@ function sanitizeHTML(text) {
 }
 
 function sanitizeFileName(name) {
-  return name.replace(/[^\w\s\.-]/gi, '').replace(/\s+/g, '_').substring(0, 100);
+  return name.replace(/[^\w\s\.-]/gi, '').replace(/\s+/g, '_').substring(0, 100) || 'export';
 }
 
 function formatFileSize(bytes) {
@@ -215,7 +218,20 @@ function downloadFile(content, filename, contentType) {
   const link = document.createElement('a');
   link.href = url;
   link.download = sanitizeFileName(filename);
+  document.body.appendChild(link);
   link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 100);
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = sanitizeFileName(filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
   setTimeout(() => URL.revokeObjectURL(url), 100);
 }
 
@@ -235,6 +251,20 @@ function isLocalFile() {
   return window.location.protocol === 'file:';
 }
 
+function getVideoEmbedUrl() {
+  switch (state.currentProvider) {
+    case 'youtube':
+    case 'youtube_shorts':
+      return `https://www.youtube.com/embed/${state.currentVideoId}`;
+    case 'vimeo':
+      return `https://player.vimeo.com/video/${state.currentVideoId}`;
+    case 'dailymotion':
+      return `https://www.dailymotion.com/embed/video/${state.currentVideoId}`;
+    default:
+      return state.originalVideoUrl || '';
+  }
+}
+
 // ============================================
 // 5. TOAST NOTIFICATIONS
 // ============================================
@@ -245,7 +275,7 @@ function showToast(message, type = 'success') {
   toast.className = `toast toast--${type}`;
   toast.innerHTML = `
     <span class="toast__icon">${icons[type] || icons.info}</span>
-    <span class="toast__message">${message}</span>
+    <span class="toast__message">${sanitizeHTML(message)}</span>
   `;
   
   elements.toastContainer?.appendChild(toast);
@@ -368,6 +398,9 @@ function updateTranscriptEmptyState() {
       ? elements.transcriptEmpty.setAttribute('hidden', '') 
       : elements.transcriptEmpty.removeAttribute('hidden');
   }
+  if (elements.transcriptCount) {
+    elements.transcriptCount.textContent = transcriptionState.transcript.length;
+  }
 }
 
 function getCurrentTime() {
@@ -434,7 +467,9 @@ function showCommentModal(prefillText = '', prefillTimestamp = null) {
     elements.commentModalTimestamp.textContent = formatTime(timestamp);
   }
   // Store the timestamp for later use
-  elements.commentModal.dataset.prefillTimestamp = timestamp;
+  if (elements.commentModal) {
+    elements.commentModal.dataset.prefillTimestamp = timestamp;
+  }
   
   showModal(elements.commentModal);
   elements.commentText?.focus();
@@ -559,7 +594,7 @@ function createYouTubeSimpleEmbed(videoId, isShorts = false) {
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
         allowfullscreen>
       </iframe>
-      <div class="seek-controls" style="display:flex;gap:8px;align-items:center;background:rgba(0,0,0,0.8);padding:10px 14px;border-radius:10px;margin-top:10px;">
+      <div class="seek-controls">
         <span style="color:#fff;font-size:12px;white-space:nowrap;">⏱️ Jump to:</span>
         <input type="text" id="yt-seek-input" placeholder="0:00" style="padding:6px 10px;border:1px solid rgba(255,255,255,0.2);border-radius:6px;background:rgba(255,255,255,0.1);color:#fff;font-family:monospace;font-size:14px;width:70px;">
         <button id="yt-seek-btn" style="padding:6px 14px;background:linear-gradient(135deg,#6366f1,#ec4899);border:none;border-radius:6px;color:#fff;font-weight:600;cursor:pointer;">Go</button>
@@ -911,11 +946,10 @@ async function initializePlayer(videoId) {
         break;
         
       case 'facebook':
-        // FIXED: Facebook video sizing - constrained dimensions
         setVideoAspectRatio('facebook');
         const fbVideoUrl = encodeURIComponent(`https://www.facebook.com/video.php?v=${videoId}`);
         elements.videoContainer.innerHTML = `
-          <div class="embed-wrapper facebook-embed" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#000;">
+          <div class="embed-wrapper facebook-embed">
             <iframe 
               src="https://www.facebook.com/plugins/video.php?href=${fbVideoUrl}&show_text=false&width=560"
               style="width:100%;max-width:560px;height:315px;border:none;border-radius:12px;"
@@ -1219,12 +1253,7 @@ function initSpeechRecognition() {
 
 function startTranscription() {
   if (state.currentProvider !== 'upload') {
-    // For non-local videos, try to fetch captions or show manual import
-    if (state.currentProvider === 'youtube' || state.currentProvider === 'youtube_shorts') {
-      fetchYouTubeSubtitles(state.currentVideoId);
-    } else {
-      showManualTranscriptModal();
-    }
+    showManualTranscriptModal();
     return;
   }
   
@@ -1302,21 +1331,7 @@ function updateTranscribeButton(isActive) {
   }
 }
 
-async function fetchYouTubeSubtitles(videoId) {
-  showToast('Fetching YouTube captions...', 'info');
-  
-  try {
-    // Note: Direct YouTube caption fetching has CORS restrictions
-    // We'll show the manual import modal with instructions
-    showManualTranscriptModal();
-  } catch (error) {
-    console.error('Error fetching subtitles:', error);
-    showManualTranscriptModal();
-  }
-}
-
 function showManualTranscriptModal() {
-  // Remove existing modal if any
   $('#manualTranscriptModal')?.remove();
   
   const modal = document.createElement('div');
@@ -1389,7 +1404,6 @@ Or just plain text (will auto-assign timestamps)"
   
   document.body.appendChild(modal);
   
-  // Event listeners
   $('#closeManualTranscript')?.addEventListener('click', () => modal.remove());
   $('#cancelManualTranscript')?.addEventListener('click', () => modal.remove());
   modal.addEventListener('click', (e) => {
@@ -1420,7 +1434,6 @@ function importManualTranscript() {
   const lines = text.split('\n').filter(line => line.trim());
   const parsed = [];
   
-  // Timestamp patterns
   const timestampPatterns = [
     /^(\d{1,2}:\d{2}(?::\d{2})?)\s*[-–:]\s*(.+)/,
     /^\[(\d{1,2}:\d{2}(?::\d{2})?)\]\s*(.+)/,
@@ -1479,7 +1492,6 @@ function updateTranscriptDisplay() {
   
   updateTranscriptEmptyState();
   
-  // Sort by timestamp
   const sorted = [...transcriptionState.transcript].sort((a, b) => a.timestamp - b.timestamp);
   
   sorted.forEach((item, index) => {
@@ -1497,7 +1509,6 @@ function updateTranscriptDisplay() {
     list.appendChild(div);
   });
   
-  // Add click handlers
   list.querySelectorAll('.transcript-time').forEach(el => {
     el.addEventListener('click', () => {
       const time = parseInt(el.dataset.time) || 0;
@@ -1505,7 +1516,6 @@ function updateTranscriptDisplay() {
     });
   });
   
-  // Add to comments button
   list.querySelectorAll('.transcript-add-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1513,13 +1523,11 @@ function updateTranscriptDisplay() {
       const sorted = [...transcriptionState.transcript].sort((a, b) => a.timestamp - b.timestamp);
       const item = sorted[index];
       if (item) {
-        // Open comment modal with prefilled text
         showCommentModal(item.text, item.timestamp);
       }
     });
   });
   
-  // Click on transcript item to add as comment
   list.querySelectorAll('.transcript-item').forEach(item => {
     item.addEventListener('click', (e) => {
       if (e.target.closest('.transcript-time') || e.target.closest('.transcript-add-btn')) return;
@@ -1758,6 +1766,11 @@ function getCommentsData() {
 
 function exportCSV() {
   const data = getCommentsData();
+  if (data.length === 0) {
+    showToast('No comments to export', 'error');
+    return;
+  }
+  
   let csv = 'timestamp,time,type,emoji,text\n';
   
   data.forEach(d => {
@@ -1765,13 +1778,19 @@ function exportCSV() {
   });
   
   downloadFile(csv, `${state.videoTitle}_comments.csv`, 'text/csv');
-  showToast('Exported as CSV');
+  showToast('Exported as CSV!', 'success');
 }
 
 function exportText() {
   const data = getCommentsData();
+  if (data.length === 0) {
+    showToast('No comments to export', 'error');
+    return;
+  }
+  
   let text = `ReactVid Export\n`;
   text += `Video: ${state.videoTitle}\n`;
+  text += `Platform: ${PROVIDER_NAMES[state.currentProvider]}\n`;
   text += `Date: ${new Date().toLocaleString()}\n`;
   text += `${'='.repeat(50)}\n\n`;
   
@@ -1780,27 +1799,42 @@ function exportText() {
   });
   
   downloadFile(text, `${state.videoTitle}_comments.txt`, 'text/plain');
-  showToast('Exported as Text');
+  showToast('Exported as Text!', 'success');
 }
 
 function exportPDF() {
+  const data = getCommentsData();
+  if (data.length === 0) {
+    showToast('No comments to export', 'error');
+    return;
+  }
+  
+  if (typeof window.jspdf === 'undefined') {
+    showToast('PDF library not loaded. Please refresh the page.', 'error');
+    return;
+  }
+  
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
-  const data = getCommentsData();
   
-  doc.setFontSize(20);
-  doc.text('ReactVid Export', 20, 20);
+  // Title
+  doc.setFontSize(24);
+  doc.setTextColor(99, 102, 241);
+  doc.text('ReactVid Export', 20, 25);
   
+  // Video info
   doc.setFontSize(12);
   doc.setTextColor(100);
-  doc.text(`Video: ${state.videoTitle}`, 20, 30);
-  doc.text(`Date: ${new Date().toLocaleString()}`, 20, 38);
-  doc.text(`Total items: ${data.length}`, 20, 46);
+  doc.text(`Video: ${state.videoTitle}`, 20, 38);
+  doc.text(`Platform: ${PROVIDER_NAMES[state.currentProvider]}`, 20, 46);
+  doc.text(`Date: ${new Date().toLocaleString()}`, 20, 54);
+  doc.text(`Total items: ${data.length}`, 20, 62);
   
+  // Line separator
   doc.setDrawColor(200);
-  doc.line(20, 52, 190, 52);
+  doc.line(20, 70, 190, 70);
   
-  let y = 62;
+  let y = 82;
   doc.setTextColor(0);
   
   data.forEach(d => {
@@ -1809,19 +1843,25 @@ function exportPDF() {
       y = 20;
     }
     
-    doc.setFontSize(10);
-    doc.setFont(undefined, 'bold');
-    doc.text(`[${d.time}]`, 20, y);
+    // Timestamp badge
+    doc.setFillColor(99, 102, 241);
+    doc.roundedRect(20, y - 5, 25, 8, 2, 2, 'F');
+    doc.setFontSize(9);
+    doc.setTextColor(255);
+    doc.text(`[${d.time}]`, 22, y);
     
-    doc.setFont(undefined, 'normal');
-    const lines = doc.splitTextToSize(`${d.emoji || ''} ${d.text}`, 160);
-    doc.text(lines, 45, y);
+    // Content
+    doc.setFontSize(11);
+    doc.setTextColor(50);
+    const contentText = `${d.emoji || ''} ${d.text}`.trim();
+    const lines = doc.splitTextToSize(contentText, 140);
+    doc.text(lines, 50, y);
     
-    y += 8 + (lines.length * 5);
+    y += 12 + (lines.length * 5);
   });
   
-  doc.save(`${state.videoTitle}_comments.pdf`);
-  showToast('Exported as PDF');
+  doc.save(`${sanitizeFileName(state.videoTitle)}_comments.pdf`);
+  showToast('Exported as PDF!', 'success');
 }
 
 function exportJSON() {
@@ -1830,58 +1870,416 @@ function exportJSON() {
       title: state.videoTitle,
       provider: state.currentProvider,
       id: state.currentVideoId,
+      url: state.originalVideoUrl || getVideoEmbedUrl(),
     },
     exportDate: new Date().toISOString(),
     comments: getCommentsData(),
     transcript: transcriptionState.transcript,
+    stats: {
+      totalComments: getCommentsData().filter(c => c.type === 'comment').length,
+      totalReactions: getCommentsData().filter(c => c.type === 'reaction').length,
+    }
   };
   
   downloadFile(JSON.stringify(data, null, 2), `${state.videoTitle}_comments.json`, 'application/json');
-  showToast('Exported as JSON');
+  showToast('Exported as JSON!', 'success');
 }
 
-function exportHTML() {
+function generateHTMLContent() {
   const data = getCommentsData();
+  const embedUrl = getVideoEmbedUrl();
   
-  const html = `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${sanitizeHTML(state.videoTitle)} - ReactVid Export</title>
   <style>
-    :root { --primary: #6366f1; --bg: #05050a; --surface: #0f0f1a; --text: #fff; --muted: #5a5a70; }
+    :root { 
+      --primary: #6366f1; 
+      --primary-light: #818cf8;
+      --secondary: #ec4899;
+      --bg: #05050a; 
+      --surface: #0f0f1a; 
+      --surface-elevated: #151522;
+      --text: #fff; 
+      --text-secondary: #a0a0b8;
+      --muted: #5a5a70; 
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 2rem; max-width: 900px; margin: 0 auto; }
-    h1 { font-size: 1.5rem; margin-bottom: 1rem; background: linear-gradient(135deg, #6366f1, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .meta { color: var(--muted); font-size: 0.875rem; margin-bottom: 2rem; }
-    .video { aspect-ratio: 16/9; background: #000; border-radius: 12px; overflow: hidden; margin-bottom: 2rem; max-width: 640px; }
-    .video iframe { width: 100%; height: 100%; border: none; }
-    .comment { display: flex; gap: 1rem; padding: 1rem; background: var(--surface); border-radius: 12px; margin-bottom: 0.75rem; }
-    .comment.reaction { border-left: 3px solid #fbbf24; }
-    .timestamp { padding: 0.25rem 0.75rem; background: var(--primary); border-radius: 6px; font-family: monospace; font-size: 0.875rem; flex-shrink: 0; }
-    .text { flex: 1; }
-    .emoji { font-size: 1.25rem; margin-right: 0.5rem; }
+    body { 
+      font-family: 'Segoe UI', system-ui, sans-serif; 
+      background: var(--bg); 
+      color: var(--text); 
+      line-height: 1.6; 
+      padding: 2rem; 
+      max-width: 900px; 
+      margin: 0 auto; 
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    h1 { 
+      font-size: 2rem; 
+      margin-bottom: 0.5rem; 
+      background: linear-gradient(135deg, #6366f1, #ec4899); 
+      -webkit-background-clip: text; 
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .meta { 
+      color: var(--muted); 
+      font-size: 0.875rem; 
+      margin-bottom: 1rem;
+    }
+    .meta span {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      background: var(--surface);
+      border-radius: 20px;
+      margin: 0.25rem;
+    }
+    .video { 
+      aspect-ratio: 16/9; 
+      background: #000; 
+      border-radius: 16px; 
+      overflow: hidden; 
+      margin-bottom: 2rem; 
+      max-width: 720px;
+      margin-left: auto;
+      margin-right: auto;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .video iframe { 
+      width: 100%; 
+      height: 100%; 
+      border: none; 
+    }
+    .video-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, var(--surface), var(--surface-elevated));
+      color: var(--text-secondary);
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .video-placeholder svg {
+      width: 48px;
+      height: 48px;
+      opacity: 0.5;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .stat {
+      padding: 1.25rem;
+      background: var(--surface);
+      border-radius: 12px;
+      text-align: center;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    .stat-value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    h2 {
+      font-size: 1.25rem;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    h2::before {
+      content: '';
+      display: block;
+      width: 4px;
+      height: 24px;
+      background: var(--primary);
+      border-radius: 2px;
+    }
+    .comments-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .comment { 
+      display: flex; 
+      gap: 1rem; 
+      padding: 1rem 1.25rem; 
+      background: var(--surface); 
+      border-radius: 12px; 
+      border: 1px solid rgba(255,255,255,0.05);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .comment:hover {
+      transform: translateX(4px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    }
+    .comment.reaction { 
+      border-left: 3px solid #fbbf24; 
+    }
+    .timestamp { 
+      padding: 0.35rem 0.75rem; 
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      border-radius: 8px; 
+      font-family: 'SF Mono', 'Fira Code', monospace; 
+      font-size: 0.8rem; 
+      flex-shrink: 0;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .text { 
+      flex: 1;
+      color: var(--text-secondary);
+    }
+    .emoji { 
+      font-size: 1.25rem; 
+      margin-right: 0.5rem; 
+    }
+    .footer {
+      text-align: center;
+      margin-top: 3rem;
+      padding-top: 2rem;
+      border-top: 1px solid rgba(255,255,255,0.05);
+      color: var(--muted);
+      font-size: 0.875rem;
+    }
+    .footer a {
+      color: var(--primary-light);
+      text-decoration: none;
+    }
+    @media (max-width: 600px) {
+      body { padding: 1rem; }
+      .comment { flex-direction: column; gap: 0.5rem; }
+      .timestamp { align-self: flex-start; }
+    }
   </style>
 </head>
 <body>
-  <h1>${sanitizeHTML(state.videoTitle)}</h1>
-  <p class="meta">Exported from ReactVid on ${new Date().toLocaleString()}</p>
-  <div class="video">
-    ${state.currentProvider === 'youtube' ? `<iframe src="https://www.youtube.com/embed/${state.currentVideoId}" allowfullscreen></iframe>` : '<p style="padding:2rem;text-align:center;color:#666;">Video preview not available</p>'}
+  <div class="header">
+    <h1>${sanitizeHTML(state.videoTitle)}</h1>
+    <p class="meta">
+      <span>📺 ${PROVIDER_NAMES[state.currentProvider]}</span>
+      <span>📅 ${new Date().toLocaleDateString()}</span>
+      <span>💬 ${data.length} items</span>
+    </p>
   </div>
-  <h2 style="margin-bottom:1rem;">Comments & Reactions (${data.length})</h2>
-  ${data.map(d => `
-    <div class="comment${d.type === 'reaction' ? ' reaction' : ''}">
-      <span class="timestamp">[${d.time}]</span>
-      <span class="text">${d.emoji ? `<span class="emoji">${d.emoji}</span>` : ''}${sanitizeHTML(d.text)}</span>
+  
+  <div class="video">
+    ${embedUrl ? `<iframe src="${embedUrl}" allowfullscreen allow="autoplay; fullscreen; picture-in-picture"></iframe>` : `
+    <div class="video-placeholder">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+      </svg>
+      <p>Video preview not available</p>
+    </div>`}
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-value">${data.filter(d => d.type === 'comment').length}</div>
+      <div class="stat-label">Comments</div>
     </div>
-  `).join('')}
+    <div class="stat">
+      <div class="stat-value">${data.filter(d => d.type === 'reaction').length}</div>
+      <div class="stat-label">Reactions</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">${formatTime(state.videoDuration)}</div>
+      <div class="stat-label">Duration</div>
+    </div>
+  </div>
+
+  <h2>Comments & Reactions</h2>
+  <div class="comments-list">
+    ${data.map(d => `
+    <div class="comment${d.type === 'reaction' ? ' reaction' : ''}" data-time="${d.timestamp}">
+      <span class="timestamp" onclick="seekTo(${d.timestamp})">[${d.time}]</span>
+      <span class="text">${d.emoji ? `<span class="emoji">${d.emoji}</span>` : ''}${sanitizeHTML(d.text)}</span>
+    </div>`).join('')}
+  </div>
+
+  <div class="footer">
+    <p>Exported from <strong>ReactVid</strong> — Video Reactions & Comments Tool</p>
+  </div>
+
+  <script>
+    function seekTo(seconds) {
+      const iframe = document.querySelector('iframe');
+      if (iframe) {
+        const src = iframe.src;
+        if (src.includes('youtube.com')) {
+          iframe.src = src.split('?')[0] + '?start=' + seconds + '&autoplay=1';
+        } else if (src.includes('vimeo.com')) {
+          iframe.src = src.split('#')[0] + '#t=' + seconds + 's';
+        }
+      }
+    }
+  </script>
 </body>
 </html>`;
+}
+
+function exportHTML() {
+  const data = getCommentsData();
+  if (data.length === 0) {
+    showToast('No comments to export', 'error');
+    return;
+  }
   
+  const html = generateHTMLContent();
   downloadFile(html, `${state.videoTitle}_export.html`, 'text/html');
-  showToast('Exported as HTML');
+  showToast('Exported as HTML!', 'success');
+}
+
+async function exportZIP() {
+  const data = getCommentsData();
+  if (data.length === 0) {
+    showToast('No comments to export', 'error');
+    return;
+  }
+  
+  if (typeof JSZip === 'undefined') {
+    showToast('ZIP library not loaded. Please refresh the page.', 'error');
+    return;
+  }
+  
+  showToast('Creating ZIP package...', 'info');
+  
+  try {
+    const zip = new JSZip();
+    const folderName = sanitizeFileName(state.videoTitle) || 'reactvid_export';
+    const folder = zip.folder(folderName);
+    
+    // Add HTML file with embedded video
+    const htmlContent = generateHTMLContent();
+    folder.file('index.html', htmlContent);
+    
+    // Add JSON data
+    const jsonData = {
+      video: {
+        title: state.videoTitle,
+        provider: state.currentProvider,
+        id: state.currentVideoId,
+        url: state.originalVideoUrl || getVideoEmbedUrl(),
+        duration: state.videoDuration,
+      },
+      exportDate: new Date().toISOString(),
+      exportVersion: '4.0.0',
+      comments: data,
+      transcript: transcriptionState.transcript,
+      stats: {
+        totalComments: data.filter(c => c.type === 'comment').length,
+        totalReactions: data.filter(c => c.type === 'reaction').length,
+        avgTimestamp: data.length > 0 
+          ? Math.floor(data.reduce((sum, c) => sum + c.timestamp, 0) / data.length)
+          : 0,
+      }
+    };
+    folder.file('data.json', JSON.stringify(jsonData, null, 2));
+    
+    // Add CSV file
+    let csv = 'timestamp,time,type,emoji,text\n';
+    data.forEach(d => {
+      csv += `${d.timestamp},"${d.time}","${d.type}","${d.emoji || ''}","${d.text.replace(/"/g, '""')}"\n`;
+    });
+    folder.file('comments.csv', csv);
+    
+    // Add plain text file
+    let textContent = `ReactVid Export\n`;
+    textContent += `${'='.repeat(50)}\n\n`;
+    textContent += `Video: ${state.videoTitle}\n`;
+    textContent += `Platform: ${PROVIDER_NAMES[state.currentProvider]}\n`;
+    textContent += `Duration: ${formatTime(state.videoDuration)}\n`;
+    textContent += `Export Date: ${new Date().toLocaleString()}\n`;
+    textContent += `Total Items: ${data.length}\n\n`;
+    textContent += `${'='.repeat(50)}\n\n`;
+    textContent += `COMMENTS & REACTIONS\n`;
+    textContent += `${'-'.repeat(50)}\n\n`;
+    
+    data.forEach(d => {
+      textContent += `[${d.time}] ${d.type === 'reaction' ? d.emoji + ' ' : ''}${d.text}\n\n`;
+    });
+    folder.file('comments.txt', textContent);
+    
+    // Add SRT transcript if available
+    if (transcriptionState.transcript.length > 0) {
+      const sorted = [...transcriptionState.transcript].sort((a, b) => a.timestamp - b.timestamp);
+      let srt = '';
+      sorted.forEach((item, index) => {
+        const startTime = formatSRTTime(item.timestamp);
+        const endTime = formatSRTTime(item.timestamp + 3);
+        srt += `${index + 1}\n${startTime} --> ${endTime}\n${item.text}\n\n`;
+      });
+      folder.file('transcript.srt', srt);
+    }
+    
+    // Add README
+    const readme = `# ReactVid Export
+
+## ${state.videoTitle}
+
+**Platform:** ${PROVIDER_NAMES[state.currentProvider]}
+**Export Date:** ${new Date().toLocaleString()}
+
+## Files Included
+
+- \`index.html\` - Interactive HTML viewer with embedded video
+- \`data.json\` - Complete data in JSON format
+- \`comments.csv\` - Spreadsheet-compatible format
+- \`comments.txt\` - Plain text format
+${transcriptionState.transcript.length > 0 ? '- `transcript.srt` - Video transcript in SRT format' : ''}
+
+## Statistics
+
+- **Total Comments:** ${data.filter(c => c.type === 'comment').length}
+- **Total Reactions:** ${data.filter(c => c.type === 'reaction').length}
+- **Video Duration:** ${formatTime(state.videoDuration)}
+
+## Usage
+
+1. Open \`index.html\` in any web browser to view your comments with the embedded video
+2. Import \`data.json\` into other applications
+3. Open \`comments.csv\` in Excel, Google Sheets, or any spreadsheet app
+4. Use \`comments.txt\` for simple text editing
+
+---
+*Exported with ReactVid - Video Reactions & Comments Tool*
+`;
+    folder.file('README.md', readme);
+    
+    // Generate ZIP
+    const content = await zip.generateAsync({ 
+      type: 'blob',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 6 }
+    });
+    
+    downloadBlob(content, `${folderName}.zip`);
+    showToast('ZIP package exported successfully!', 'success');
+    
+  } catch (error) {
+    console.error('ZIP export error:', error);
+    showToast('Failed to create ZIP package', 'error');
+  }
 }
 
 // ============================================
@@ -1938,6 +2336,8 @@ function initEventListeners() {
       return;
     }
     
+    state.originalVideoUrl = url;
+    
     const platform = detectPlatform(url);
     if (platform) {
       state.currentProvider = platform;
@@ -1987,6 +2387,7 @@ function initEventListeners() {
     state.ytPlayer = null;
     state.vimeoPlayer = null;
     state.videoAspectRatio = null;
+    state.originalVideoUrl = null;
     stopTranscription();
     showFeaturePanels(false);
     if (elements.videoLink) elements.videoLink.value = '';
@@ -2060,7 +2461,6 @@ function initEventListeners() {
       return;
     }
     
-    // Use prefill timestamp if available
     const prefillTimestamp = elements.commentModal?.dataset.prefillTimestamp;
     const timestamp = prefillTimestamp ? parseInt(prefillTimestamp) : Math.floor(getCurrentTime());
     
@@ -2070,7 +2470,6 @@ function initEventListeners() {
       type: 'comment',
     });
     
-    // Clear prefill data
     delete elements.commentModal?.dataset.prefillTimestamp;
     
     hideModal(elements.commentModal);
@@ -2106,46 +2505,58 @@ function initEventListeners() {
   elements.sortCommentsBtn?.addEventListener('click', toggleSortOrder);
   elements.clearAllBtn?.addEventListener('click', clearAllComments);
   
-  // Export dropdown
-  elements.exportDropdownBtn?.addEventListener('click', () => {
-    const dropdown = elements.exportDropdownBtn.closest('.export-dropdown');
-    dropdown?.classList.toggle('open');
+  // Export dropdown - FIXED
+  elements.exportDropdownBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const dropdown = elements.exportDropdown || elements.exportDropdownBtn?.closest('.export-dropdown');
+    if (dropdown) {
+      dropdown.classList.toggle('open');
+    }
   });
   
+  // Close dropdown when clicking outside
   document.addEventListener('click', e => {
     if (!e.target.closest('.export-dropdown')) {
-      $('.export-dropdown')?.classList.remove('open');
+      const dropdown = elements.exportDropdown || $('.export-dropdown');
+      dropdown?.classList.remove('open');
     }
+  });
+  
+  // Export handlers
+  elements.exportZIP?.addEventListener('click', () => {
+    if (!validateExport()) return;
+    exportZIP();
+    closeExportDropdown();
   });
   
   elements.exportCSV?.addEventListener('click', () => {
     if (!validateExport()) return;
     exportCSV();
-    $('.export-dropdown')?.classList.remove('open');
+    closeExportDropdown();
   });
   
   elements.exportText?.addEventListener('click', () => {
     if (!validateExport()) return;
     exportText();
-    $('.export-dropdown')?.classList.remove('open');
+    closeExportDropdown();
   });
   
   elements.exportPDF?.addEventListener('click', () => {
     if (!validateExport()) return;
     exportPDF();
-    $('.export-dropdown')?.classList.remove('open');
+    closeExportDropdown();
   });
   
   elements.exportHTML?.addEventListener('click', () => {
     if (!validateExport()) return;
     exportHTML();
-    $('.export-dropdown')?.classList.remove('open');
+    closeExportDropdown();
   });
   
   elements.exportJSON?.addEventListener('click', () => {
     if (!validateExport()) return;
     exportJSON();
-    $('.export-dropdown')?.classList.remove('open');
+    closeExportDropdown();
   });
   
   // Modal overlays
@@ -2160,6 +2571,7 @@ function initEventListeners() {
     if (e.key === 'Escape') {
       document.querySelectorAll('.modal-overlay:not([hidden])').forEach(m => hideModal(m));
       $('#manualTranscriptModal')?.remove();
+      closeExportDropdown();
     }
   });
   
@@ -2173,11 +2585,11 @@ function initEventListeners() {
   });
   
   // Transcript actions
-  $('#copyTranscriptBtn')?.addEventListener('click', copyTranscript);
-  $('#exportTranscriptBtn')?.addEventListener('click', exportTranscriptSRT);
-  $('#clearTranscriptBtn')?.addEventListener('click', clearTranscript);
-  $('#addAllTranscriptBtn')?.addEventListener('click', addAllTranscriptAsComments);
-  $('#importTranscriptBtn')?.addEventListener('click', showManualTranscriptModal);
+  elements.copyTranscriptBtn?.addEventListener('click', copyTranscript);
+  elements.exportTranscriptBtn?.addEventListener('click', exportTranscriptSRT);
+  elements.clearTranscriptBtn?.addEventListener('click', clearTranscript);
+  elements.addAllTranscriptBtn?.addEventListener('click', addAllTranscriptAsComments);
+  elements.importTranscriptBtn?.addEventListener('click', showManualTranscriptModal);
   
   // Handle resize
   window.addEventListener('resize', debounce(() => {
@@ -2185,6 +2597,11 @@ function initEventListeners() {
       // Re-apply aspect ratio if needed
     }
   }, 250));
+}
+
+function closeExportDropdown() {
+  const dropdown = elements.exportDropdown || $('.export-dropdown');
+  dropdown?.classList.remove('open');
 }
 
 function validateExport() {
@@ -2240,10 +2657,3 @@ window.addEventListener('unhandledrejection', (e) => {
 });
 
 document.addEventListener('DOMContentLoaded', init);
-
-
-
-
-
-
-
