@@ -1927,15 +1927,16 @@ function generateHTMLContent() {
   const markers = getTimelineMarkersData();
   const isYouTube = state.currentProvider === 'youtube' || state.currentProvider === 'youtube_shorts';
   const isVimeo = state.currentProvider === 'vimeo';
+  const videoId = state.currentVideoId;
   
-  // Get embed URL for direct playback
+  // Simple embed URL like main app
   let embedUrl = '';
   if (isYouTube) {
-    embedUrl = `https://www.youtube.com/embed/${state.currentVideoId}?enablejsapi=1&rel=0`;
+    embedUrl = `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`;
   } else if (isVimeo) {
-    embedUrl = `https://player.vimeo.com/video/${state.currentVideoId}`;
+    embedUrl = `https://player.vimeo.com/video/${videoId}`;
   } else if (state.currentProvider === 'dailymotion') {
-    embedUrl = `https://www.dailymotion.com/embed/video/${state.currentVideoId}`;
+    embedUrl = `https://www.dailymotion.com/embed/video/${videoId}`;
   }
   
   return `<!DOCTYPE html>
@@ -2001,12 +2002,10 @@ function generateHTMLContent() {
       aspect-ratio: 16/9;
     }
     .video-container iframe {
-      position: absolute;
-      top: 0;
-      left: 0;
       width: 100%;
       height: 100%;
       border: none;
+      border-radius: 12px;
     }
     .controls {
       display: flex;
@@ -2019,7 +2018,7 @@ function generateHTMLContent() {
     .time-display {
       font-family: 'SF Mono', 'Fira Code', monospace;
       font-size: 1rem;
-      min-width: 120px;
+      min-width: 100px;
     }
     .time-display .current { font-weight: 700; color: var(--primary-light); }
     .time-display .duration { color: var(--muted); }
@@ -2038,14 +2037,6 @@ function generateHTMLContent() {
       transform: translateY(-50%);
       background: rgba(255,255,255,0.1);
       border-radius: 3px;
-      overflow: hidden;
-    }
-    .timeline-progress {
-      height: 100%;
-      background: linear-gradient(90deg, var(--primary), var(--secondary));
-      border-radius: 3px;
-      width: 0%;
-      transition: width 0.1s;
     }
     .timeline-markers { position: absolute; inset: 0; }
     .timeline-marker {
@@ -2144,11 +2135,6 @@ function generateHTMLContent() {
       box-shadow: 0 4px 16px rgba(0,0,0,0.3);
       border-color: var(--primary);
     }
-    .comment.active {
-      border-color: var(--primary);
-      background: var(--surface-elevated);
-      box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
-    }
     .comment.reaction { border-left: 3px solid var(--yellow); }
     .timestamp { 
       padding: 0.35rem 0.75rem; 
@@ -2209,9 +2195,7 @@ function generateHTMLContent() {
       </div>
       
       <div class="timeline" id="timeline">
-        <div class="timeline-track">
-          <div class="timeline-progress" id="progress"></div>
-        </div>
+        <div class="timeline-track"></div>
         <div class="timeline-markers">
           ${markers.map(m => `
           <div class="timeline-marker ${m.type}" style="left: ${m.position}%" data-time="${m.timestamp}">
@@ -2251,10 +2235,11 @@ function generateHTMLContent() {
     <p>Exported from <strong>ReactVid</strong></p>
   </div>
 
-  <script src="https://www.youtube.com/iframe_api"></script>
   <script>
-    let ytPlayer;
     const duration = ${state.videoDuration};
+    const videoId = '${videoId}';
+    const isYouTube = ${isYouTube};
+    const iframe = document.getElementById('player');
     
     function formatTime(sec) {
       if (!sec || isNaN(sec)) return '0:00';
@@ -2265,29 +2250,14 @@ function generateHTMLContent() {
       return h > 0 ? h + ':' + pad(m) + ':' + pad(s) : m + ':' + pad(s);
     }
     
-    function onYouTubeIframeAPIReady() {
-      ytPlayer = new YT.Player('player', {
-        events: { 'onReady': () => setInterval(updateUI, 500) }
-      });
-    }
-    
-    function updateUI() {
-      if (!ytPlayer || !ytPlayer.getCurrentTime) return;
-      const t = ytPlayer.getCurrentTime();
-      document.getElementById('currentTime').textContent = formatTime(t);
-      document.getElementById('progress').style.width = (t / duration * 100) + '%';
-      
-      document.querySelectorAll('.comment').forEach(c => {
-        const ct = parseInt(c.dataset.time);
-        c.classList.toggle('active', t >= ct && t < ct + 3);
-      });
-    }
-    
-    function seekTo(time) {
-      if (ytPlayer && ytPlayer.seekTo) {
-        ytPlayer.seekTo(time, true);
-        ytPlayer.playVideo();
+    function seekTo(seconds) {
+      if (isYouTube) {
+        iframe.src = 'https://www.youtube.com/embed/' + videoId + '?rel=0&modestbranding=1&start=' + Math.floor(seconds) + '&autoplay=1';
+      } else {
+        iframe.src = iframe.src.split('?')[0] + '?start=' + Math.floor(seconds) + '&autoplay=1';
       }
+      document.getElementById('currentTime').textContent = formatTime(seconds);
+      document.querySelector('.video-section').scrollIntoView({ behavior: 'smooth' });
     }
     
     // Timeline click
