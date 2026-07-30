@@ -122,6 +122,7 @@ const state = {
   videoAuthor: null,
   videoThumbnail: null,
   editingComment: null,
+  includeReactionsInExport: true,
 };
 
 // Transcription state
@@ -162,7 +163,7 @@ function cacheElements() {
     'importTranscriptBtn', 'copyTranscriptBtn', 'exportTranscriptBtn',
     'addAllTranscriptBtn', 'clearTranscriptBtn',
     'exportPDFBtn', 'exportCSVBtn', 'exportJSONBtn', 'exportTXTBtn', 'exportSRTBtn',
-    'searchComments', 'recentVideos', 'recentVideosList',
+    'searchComments', 'recentVideos', 'recentVideosList', 'includeReactionsToggle',
   ];
 
   ids.forEach(id => {
@@ -1953,20 +1954,22 @@ function updateUI() {
 // ============================================
 
 function getCommentsData() {
-  return Array.from(elements.commentsList?.children || []).map(c => ({
+  const items = Array.from(elements.commentsList?.children || []).map(c => ({
     timestamp: parseInt(c.dataset.timestamp) || 0,
     time: formatTime(parseInt(c.dataset.timestamp) || 0),
     type: c.classList.contains('reaction') ? 'reaction' : 'comment',
     emoji: c.querySelector('.reaction-emoji')?.textContent || null,
     text: getCommentPlainText(c),
   }));
+
+  // "Include reactions" export toggle — off means text comments only
+  return state.includeReactionsInExport ? items : items.filter(i => i.type !== 'reaction');
 }
 
 function exportCSV() {
   const data = getCommentsData();
   if (data.length === 0) {
-    showToast('No comments to export', 'error');
-    return;
+    showToast('No comments included — exporting metadata only', 'info');
   }
   
   let csv = 'timestamp,time,type,emoji,text\n';
@@ -1982,8 +1985,7 @@ function exportCSV() {
 function exportText() {
   const data = getCommentsData();
   if (data.length === 0) {
-    showToast('No comments to export', 'error');
-    return;
+    showToast('No comments included — exporting metadata only', 'info');
   }
   
   let text = `ReactVid Export\n`;
@@ -2003,8 +2005,7 @@ function exportText() {
 async function exportPDF() {
   const data = getCommentsData();
   if (data.length === 0) {
-    showToast('No comments to export', 'error');
-    return;
+    showToast('No comments included — exporting metadata only', 'info');
   }
 
   try {
@@ -2101,8 +2102,7 @@ function buildCommentsSRT(data) {
 function exportCommentsSRT() {
   const data = getCommentsData();
   if (data.length === 0) {
-    showToast('No comments to export', 'error');
-    return;
+    showToast('No comments included — exporting metadata only', 'info');
   }
   downloadFile(buildCommentsSRT(data), `${state.videoTitle}_comments.srt`, 'text/plain');
   showToast('Comments exported as SRT subtitles!', 'success');
@@ -2569,8 +2569,7 @@ function generateHTMLContent() {
 async function exportHTML() {
   const data = getCommentsData();
   if (data.length === 0) {
-    showToast('No comments to export', 'error');
-    return;
+    showToast('No comments included — exporting metadata only', 'info');
   }
   
   const isLocalVideo = state.currentProvider === 'upload' && state.uploadedVideo;
@@ -2947,7 +2946,28 @@ function askForPackVideo() {
         </div>
         <div class="modal__body">
           <p style="margin-bottom:0.75rem;">To get the <strong>actual video (MP4)</strong> inside your Offline Pack, pick a copy from your computer — it will play fully offline, synced with all your comments.</p>
-          <p style="color:var(--color-text-muted);font-size:0.85rem;">Streaming platforms don't allow web apps to download their videos directly. If you have the right to an offline copy (your own upload, Creative Commons, or the platform's official download feature), attach it here — or skip and add it later next to <code>viewer.html</code> as <code>video.mp4</code>.</p>
+          <p style="color:var(--color-text-muted);font-size:0.85rem;margin-bottom:1rem;">Streaming platforms don't let web apps grab their video streams directly. Get a copy first, then attach it here:</p>
+          <div class="pack-video-steps">
+            <div class="pack-video-step">
+              <span class="pack-video-step__num">1</span>
+              <div>
+                <strong>Don't have the file yet?</strong>
+                <p>Use the platform's official download/offline feature, or an external downloader — this button copies the video URL and opens one in a new tab.</p>
+                <button class="btn btn--secondary btn--sm" id="packVideoDownloader">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  <span>Open video downloader</span>
+                </button>
+              </div>
+            </div>
+            <div class="pack-video-step">
+              <span class="pack-video-step__num">2</span>
+              <div>
+                <strong>Attach the file</strong>
+                <p>It goes straight into the ZIP and plays offline in the pack's viewer.</p>
+              </div>
+            </div>
+          </div>
+          <p style="color:var(--color-text-muted);font-size:0.78rem;margin-top:0.75rem;">Only download content you have the right to save (your own uploads, Creative Commons, or where the platform permits it). You can also skip and drop a <code>video.mp4</code> next to <code>viewer.html</code> later.</p>
         </div>
         <div class="modal__footer">
           <button class="btn btn--ghost" id="packVideoSkip">Skip — pack without video</button>
@@ -2968,6 +2988,16 @@ function askForPackVideo() {
 
     modal.querySelector('#packVideoChoose').addEventListener('click', () => {
       modal.querySelector('#packVideoInput').click();
+    });
+    modal.querySelector('#packVideoDownloader')?.addEventListener('click', async () => {
+      const url = state.originalVideoUrl || getVideoWatchUrl();
+      try {
+        if (url) await navigator.clipboard.writeText(url);
+        showToast('Video URL copied — paste it in the downloader, then come back and attach the file', 'info');
+      } catch {
+        showToast('Paste the video URL in the downloader, then come back and attach the file', 'info');
+      }
+      window.open('https://cobalt.tools/', '_blank', 'noopener');
     });
     modal.querySelector('#packVideoInput').addEventListener('change', (e) => {
       const file = e.target.files?.[0];
@@ -2990,11 +3020,6 @@ async function exportZIP() {
   const hasTranscript = transcriptionState.transcript.length > 0;
   const isLocalVideo = state.currentProvider === 'upload' && state.uploadedVideo;
   const isDirectVideo = state.currentProvider === 'direct' && state.originalVideoUrl;
-
-  if (data.length === 0 && !hasTranscript && !isLocalVideo && !isDirectVideo) {
-    showToast('Nothing to export yet — add a comment or reaction first', 'error');
-    return;
-  }
 
   if (typeof JSZip === 'undefined') {
     showToast('ZIP library not loaded. Please refresh the page.', 'error');
@@ -3157,7 +3182,15 @@ their streams are protected and their terms of service restrict downloading.
 
 If you have the right to an offline copy (it's your own upload, it's
 Creative-Commons licensed, or the platform offers an official download /
-offline feature), save the file **in this folder** named:
+offline feature), here is how to get the file:
+
+- **Official routes:** the platform's download / offline feature
+  (e.g. YouTube Premium offline, YouTube Studio for your own videos).
+- **Open-source tools:** [cobalt.tools](https://cobalt.tools) (web, paste the
+  URL) or [yt-dlp](https://github.com/yt-dlp/yt-dlp) (command line) can save a
+  copy — use them only for content you have the right to download.
+
+Then save the file **in this folder** named:
 
 - \`video.mp4\` (or \`video.webm\`, \`video.m4v\`, \`video.mov\`)
 
@@ -3948,6 +3981,14 @@ function initEventListeners() {
   elements.searchComments?.addEventListener('input', debounce((e) => {
     filterComments(e.target.value);
   }, 150));
+
+  // "Include reactions" export toggle
+  elements.includeReactionsToggle?.addEventListener('change', (e) => {
+    state.includeReactionsInExport = e.target.checked;
+    showToast(e.target.checked
+      ? 'Exports will include reactions'
+      : 'Exports will contain text comments only', 'info');
+  });
   
   // Modal overlays
   document.querySelectorAll('.modal-overlay').forEach(overlay => {
@@ -4077,10 +4118,6 @@ function closeExportDropdown() {
 function validateExport() {
   if (!state.videoLoaded) {
     showToast('Please load a video first', 'error');
-    return false;
-  }
-  if (!elements.commentsList?.children.length) {
-    showToast('No comments to export', 'error');
     return false;
   }
   return true;

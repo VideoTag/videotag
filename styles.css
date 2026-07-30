@@ -2269,3 +2269,68 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* ----------------------------------------
+   31. Export Toggle & Pack Video Dialog
+   ---------------------------------------- */
+.export-dropdown__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  user-select: none;
+}
+
+.export-dropdown__toggle:hover {
+  color: var(--color-text);
+}
+
+.export-dropdown__toggle input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.pack-video-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.pack-video-step {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-surface-elevated);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+}
+
+.pack-video-step__num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  background: var(--gradient-primary);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.pack-video-step p {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  margin: var(--space-1) 0 var(--space-2);
+}
+
+.pack-video-step strong {
+  font-size: var(--text-sm);
+}

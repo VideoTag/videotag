@@ -29,6 +29,7 @@ VideoTAG is a web application that lets you add timestamped reactions and commen
 - Recent videos list — jump back into any video with one click
 - Live speech-to-text transcription or transcript import
 - Comments exportable as **SRT subtitles** (overlay your notes on the video in VLC!)
+- **"Include reactions" toggle** in the export menu — export text comments only, or even an empty pack (video + metadata)
 - Keyboard shortcuts, drag & drop upload, analytics dashboard
 - Zero build step, zero backend — everything runs and is stored in your browser
 
@@ -51,7 +52,7 @@ The flagship export. `Export → Offline Pack (ZIP)` produces a folder you can o
 
 - **Local files** — bundled automatically.
 - **Direct video URLs** (`.mp4`, `.webm`, …) — downloaded straight into the ZIP (when the host allows cross-origin downloads).
-- **Streaming platforms (YouTube, TikTok, …)** — browsers cannot download their protected streams, and platform terms restrict it. At export time the app offers to **attach a copy you already have** (your own upload, Creative-Commons content, or the platform's official download feature) so the MP4 ships inside the ZIP. You can also just drop a `video.mp4` next to `viewer.html` later — the viewer picks it up automatically, or lets you load any file via a button/drag & drop.
+- **Streaming platforms (YouTube, TikTok, …)** — browsers cannot download their protected streams, and platform terms restrict it. At export time the app walks you through it: an **"Open video downloader"** button copies the video URL and opens an external open-source downloader (cobalt.tools) in a new tab; once you have the file, **attach it** and the MP4 ships inside the ZIP. Only download content you have the right to save. You can also just drop a `video.mp4` next to `viewer.html` later — the viewer picks it up automatically, or lets you load any file via a button/drag & drop.
 
 ## 🌐 Supported Platforms
 
