@@ -3,29 +3,144 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Page not found — VideoLens</title>
+  <title>404 — Frame Not Found · VideoLens</title>
   <meta name="robots" content="noindex">
   <meta name="theme-color" content="#05050a">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%AC%3C/text%3E%3C/svg%3E">
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%BC%3C/text%3E%3C/svg%3E">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #05050a; --surface: #0f0f1a; --surface-2: #151522;
+      --primary: #6366f1; --secondary: #ec4899; --text: #fff; --muted: #5a5a70;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Outfit', system-ui, sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      overflow: hidden; padding: 1.5rem;
+    }
+    .tv {
+      position: relative; max-width: 640px; width: 100%;
+      background: var(--surface); border-radius: 20px;
+      padding: 2.5rem 2rem 1.5rem; text-align: center;
+      border: 1px solid rgba(255,255,255,0.07);
+      box-shadow: 0 20px 80px rgba(0,0,0,0.7), 0 0 60px rgba(99,102,241,0.15);
+      overflow: hidden;
+    }
+    /* VHS static */
+    .tv::before {
+      content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.06;
+      background-image: repeating-linear-gradient(0deg, #fff 0 1px, transparent 1px 3px);
+      animation: staticMove 0.35s steps(4) infinite;
+    }
+    .tv::after {
+      content: ''; position: absolute; left: 0; right: 0; height: 90px; pointer-events: none;
+      background: linear-gradient(180deg, transparent, rgba(255,255,255,0.05), transparent);
+      animation: scanline 5s linear infinite;
+    }
+    @keyframes staticMove { to { background-position: 0 4px; } }
+    @keyframes scanline { 0% { top: -90px; } 100% { top: 110%; } }
+
+    .code {
+      font-size: clamp(5rem, 20vw, 9rem); font-weight: 900; line-height: 1;
+      letter-spacing: -0.04em; position: relative; display: inline-block;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      animation: glitchShift 2.4s infinite;
+    }
+    .code::before, .code::after {
+      content: '404'; position: absolute; inset: 0;
+      background: inherit; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .code::before { transform: translate(3px, -2px); opacity: 0.5; filter: hue-rotate(90deg); animation: glitchA 3.1s infinite; }
+    .code::after  { transform: translate(-3px, 2px); opacity: 0.4; filter: hue-rotate(-60deg); animation: glitchB 2.7s infinite; }
+    @keyframes glitchShift { 0%, 92%, 100% { transform: none; } 94% { transform: skewX(4deg); } 96% { transform: skewX(-3deg) translateX(2px); } }
+    @keyframes glitchA { 0%, 88%, 100% { clip-path: inset(0 0 0 0); } 90% { clip-path: inset(20% 0 55% 0); transform: translate(6px, -2px); } 94% { clip-path: inset(60% 0 10% 0); } }
+    @keyframes glitchB { 0%, 85%, 100% { clip-path: inset(0 0 0 0); } 88% { clip-path: inset(45% 0 30% 0); transform: translate(-6px, 3px); } 93% { clip-path: inset(10% 0 70% 0); } }
+
+    h1 { font-size: 1.4rem; font-weight: 800; margin: 0.75rem 0 0.4rem; }
+    p.sub { color: var(--muted); font-size: 0.95rem; margin-bottom: 1.75rem; }
+
+    /* Fake player */
+    .player {
+      background: var(--surface-2); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px; padding: 0.9rem 1.1rem; margin-bottom: 1.5rem;
+      display: flex; align-items: center; gap: 0.8rem;
+    }
+    .player .time { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--muted); white-space: nowrap; }
+    .bar { flex: 1; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; position: relative; overflow: visible; }
+    .bar .fill { position: absolute; inset: 0 auto 0 0; width: 101%; max-width: 101%; background: linear-gradient(90deg, var(--primary), var(--secondary)); border-radius: 3px; }
+    .bar .head {
+      position: absolute; right: -7px; top: 50%; width: 14px; height: 14px;
+      background: #fff; border-radius: 50%; transform: translateY(-50%);
+      box-shadow: 0 0 12px rgba(236,72,153,0.8); animation: headPulse 1.4s ease-in-out infinite;
+    }
+    @keyframes headPulse { 50% { transform: translateY(-50%) scale(1.25); } }
+
+    .actions { display: flex; gap: 0.7rem; justify-content: center; flex-wrap: wrap; margin-bottom: 1.4rem; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.7rem 1.4rem;
+      border-radius: 10px; font-weight: 700; font-size: 0.95rem; text-decoration: none;
+      cursor: pointer; border: none; font-family: inherit; transition: transform 0.15s, opacity 0.15s;
+    }
+    .btn:hover { transform: translateY(-2px); opacity: 0.93; }
+    .btn--primary { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: #fff; }
+    .btn--ghost { background: transparent; color: var(--text); border: 1px solid rgba(255,255,255,0.15); }
+
+    nav { display: flex; gap: 1.2rem; justify-content: center; flex-wrap: wrap; }
+    nav a { color: var(--muted); text-decoration: none; font-size: 0.85rem; }
+    nav a:hover { color: #a5b4fc; }
+
+    .emoji-drop { position: fixed; top: -3rem; z-index: 10; pointer-events: none; animation: fall 3.2s linear forwards; }
+    @keyframes fall { to { transform: translateY(115vh) rotate(340deg); opacity: 0.85; } }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; }
+    }
+  </style>
 </head>
 <body>
-  <div class="bg-effects">
-    <div class="bg-gradient"></div>
-    <div class="bg-grid"></div>
-  </div>
-  <div class="app">
-    <main class="page" style="text-align:center;padding-top:15vh;">
-      <h1>404 — this moment doesn't exist</h1>
-      <p class="page-lead">Like a timestamp past the end of the video.</p>
-      <p><a class="btn btn--primary" href="/">🎬 Back to VideoLens</a></p>
-      <nav class="footer__nav" style="margin-top:2rem;" aria-label="Site pages">
-        <a href="/about.html">About</a>
-        <a href="/guide.html">How it works</a>
-        <a href="/faq.html">FAQ</a>
-      </nav>
-    </main>
-  </div>
+  <main class="tv">
+    <div class="code" aria-hidden="true">404</div>
+    <h1>You scrubbed past the end of the tape 📼</h1>
+    <p class="sub">This frame doesn't exist. Maybe it was never rendered. Maybe it got cut. Either way — nothing to react to here.</p>
+
+    <div class="player" aria-hidden="true">
+      <span class="time">4:04</span>
+      <div class="bar"><div class="fill"></div><div class="head"></div></div>
+      <span class="time">∞</span>
+    </div>
+
+    <div class="actions">
+      <a class="btn btn--primary" href="/">⏪ Rewind to VideoLens</a>
+      <button class="btn btn--ghost" id="popcorn">🍿 Drop popcorn</button>
+    </div>
+
+    <nav aria-label="Site pages">
+      <a href="/about.html">About</a>
+      <a href="/guide.html">How it works</a>
+      <a href="/faq.html">FAQ</a>
+      <a href="https://github.com/VideoTag/videotag" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+  </main>
+
+  <script>
+    function rain(n) {
+      var emojis = ['🍿', '🎬', '📼', '⭐', '😂', '😮', '🔥', '👍'];
+      for (var i = 0; i < n; i++) {
+        var d = document.createElement('span');
+        d.className = 'emoji-drop';
+        d.textContent = emojis[i % emojis.length];
+        d.style.left = Math.random() * 100 + 'vw';
+        d.style.animationDelay = Math.random() * 1.1 + 's';
+        d.style.fontSize = (1 + Math.random() * 1.5) + 'rem';
+        document.body.appendChild(d);
+        (function (el) { setTimeout(function () { el.remove(); }, 4600); })(d);
+      }
+    }
+    document.getElementById('popcorn').addEventListener('click', function () { rain(36); });
+    rain(12);
+  </script>
 </body>
 </html>

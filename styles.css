@@ -2476,3 +2476,39 @@ body {
 }
 
 .footer__nav a:hover { color: var(--color-primary-light); }
+
+/* ----------------------------------------
+   33. Star Prompt & Easter Eggs
+   ---------------------------------------- */
+.star-modal {
+  text-align: center;
+  overflow: visible;
+}
+
+.star-modal__star {
+  font-size: 3.5rem;
+  line-height: 1;
+  margin: var(--space-4) auto calc(-1 * var(--space-2));
+  animation: starBounce 1.6s var(--ease-bounce) infinite;
+  filter: drop-shadow(0 0 18px rgba(251, 191, 36, 0.45));
+}
+
+@keyframes starBounce {
+  0%, 100% { transform: translateY(0) rotate(-6deg); }
+  50% { transform: translateY(-10px) rotate(6deg); }
+}
+
+.emoji-rain {
+  position: fixed;
+  top: -3rem;
+  z-index: var(--z-toast);
+  pointer-events: none;
+  animation: emojiFall 3.2s linear forwards;
+}
+
+@keyframes emojiFall {
+  to {
+    transform: translateY(115vh) rotate(340deg);
+    opacity: 0.85;
+  }
+}

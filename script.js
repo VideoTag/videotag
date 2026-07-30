@@ -4185,6 +4185,106 @@ function validateExport() {
 }
 
 // ============================================
+// 19b. STAR PROMPT & EASTER EGGS
+// ============================================
+
+const STAR_KEY = 'reactvid_star_prompt';
+const GITHUB_REPO_URL = 'https://github.com/VideoTag/videotag';
+
+function shouldShowStarPrompt() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STAR_KEY) || '{}');
+    if (s.starred) return false;
+    if (s.last && Date.now() - s.last < 14 * 24 * 3600 * 1000) return false;
+  } catch {}
+  // Only nudge people who actually used the app this session
+  return state.videoLoaded;
+}
+
+function markStarPrompt(starred) {
+  try {
+    localStorage.setItem(STAR_KEY, JSON.stringify({ last: Date.now(), starred: !!starred }));
+  } catch {}
+}
+
+function showStarModal() {
+  if ($('#starModal')) return;
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'starModal';
+  modal.innerHTML = `
+    <div class="modal modal--sm star-modal" role="dialog" aria-modal="true" aria-labelledby="starModalTitle">
+      <div class="star-modal__star">⭐</div>
+      <div class="modal__body" style="text-align:center;">
+        <h3 class="modal__title" id="starModalTitle" style="margin-bottom:0.5rem;">Leaving already?</h3>
+        <p style="color:var(--color-text-secondary);font-size:0.9rem;">
+          If VideoLens saved your timestamps today, a star on GitHub keeps this
+          free &amp; open-source project alive. It takes 2 seconds — we counted.
+        </p>
+      </div>
+      <div class="modal__footer" style="justify-content:center;">
+        <button class="btn btn--ghost" id="starLater">Maybe later</button>
+        <a class="btn btn--primary" id="starGo" href="${GITHUB_REPO_URL}" target="_blank" rel="noopener">
+          <span>⭐ Star on GitHub</span>
+        </a>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  markStarPrompt(false);
+
+  modal.querySelector('#starGo').addEventListener('click', () => {
+    markStarPrompt(true);
+    modal.remove();
+    showToast('You are a legend ⭐ Thank you!', 'success');
+  });
+  modal.querySelector('#starLater').addEventListener('click', () => modal.remove());
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.remove();
+  });
+}
+
+function initStarPrompt() {
+  // Exit intent: cursor leaves through the top of the viewport
+  document.addEventListener('mouseout', (e) => {
+    if (!e.relatedTarget && e.clientY <= 0 && shouldShowStarPrompt()) {
+      showStarModal();
+    }
+  });
+}
+
+// Konami code (↑↑↓↓←→←→BA) → reaction storm
+const KONAMI = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+let konamiPos = 0;
+
+function emojiRain() {
+  const emojis = ['👍', '❤️', '😂', '😮', '🔥', '💡', '🎯', '🎬', '⭐', '🍿'];
+  for (let i = 0; i < 48; i++) {
+    const drop = document.createElement('span');
+    drop.className = 'emoji-rain';
+    drop.textContent = emojis[i % emojis.length];
+    drop.style.left = `${Math.random() * 100}vw`;
+    drop.style.animationDelay = `${Math.random() * 1.2}s`;
+    drop.style.fontSize = `${1 + Math.random() * 1.6}rem`;
+    document.body.appendChild(drop);
+    setTimeout(() => drop.remove(), 4500);
+  }
+  showToast('🍿 Reaction storm unlocked!', 'success');
+}
+
+function initKonami() {
+  document.addEventListener('keydown', (e) => {
+    const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    konamiPos = key === KONAMI[konamiPos] ? konamiPos + 1 : (key === KONAMI[0] ? 1 : 0);
+    if (konamiPos === KONAMI.length) {
+      konamiPos = 0;
+      emojiRain();
+    }
+  });
+}
+
+// ============================================
 // 20. INITIALIZATION
 // ============================================
 
@@ -4192,6 +4292,8 @@ function init() {
   cacheElements();
   initEventListeners();
   renderRecentVideos();
+  initStarPrompt();
+  initKonami();
 
   if (isLocalFile()) {
     console.log('Running from file:// - some features may be limited');
