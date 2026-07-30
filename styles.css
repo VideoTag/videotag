@@ -1,6 +1,6 @@
 /* ----------------------------------------
    ReactVid - Video Reactions & Comments
-   Version 4.0.0
+   Version 5.0.0
    ---------------------------------------- */
 
 /* ----------------------------------------
@@ -2083,4 +2083,189 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-surface-hover);
+}
+/* ----------------------------------------
+   24. Recent Videos
+   ---------------------------------------- */
+.recent-videos {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.recent-videos__label {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+.recent-videos__list {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.recent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-surface-elevated);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-full);
+  color: var(--color-text-secondary);
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  max-width: 240px;
+}
+
+.recent-chip:hover {
+  border-color: var(--color-primary);
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+  transform: translateY(-1px);
+}
+
+.recent-chip__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ----------------------------------------
+   25. Comments Search
+   ---------------------------------------- */
+.comments-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.comments-search svg {
+  position: absolute;
+  left: var(--space-3);
+  width: 14px;
+  height: 14px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.comments-search__input {
+  width: 160px;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-8);
+  background: var(--color-surface-elevated);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-full);
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  transition: var(--transition-fast);
+}
+
+.comments-search__input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  width: 200px;
+}
+
+.comments-search__input::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* ----------------------------------------
+   26. Comment Edit Button
+   ---------------------------------------- */
+.comment-edit {
+  position: absolute;
+  top: var(--space-2);
+  right: calc(var(--space-2) + 32px);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: var(--transition-base);
+}
+
+.comment:hover .comment-edit {
+  opacity: 1;
+}
+
+.comment-edit:hover {
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--color-primary-light);
+}
+
+.comment-edit svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ----------------------------------------
+   27. Drag & Drop State
+   ---------------------------------------- */
+.input-section.drop-active {
+  outline: 2px dashed var(--color-primary);
+  outline-offset: -8px;
+  background: rgba(99, 102, 241, 0.06);
+}
+
+/* ----------------------------------------
+   28. Export Menu (long list)
+   ---------------------------------------- */
+.export-dropdown__menu {
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+/* ----------------------------------------
+   29. Footer Shortcuts
+   ---------------------------------------- */
+.footer__shortcuts {
+  margin-top: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.footer__shortcuts kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  background: var(--color-surface-elevated);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--color-text-secondary);
+}
+
+/* ----------------------------------------
+   30. Accessibility
+   ---------------------------------------- */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -4,7 +4,8 @@
  * A premium application for adding timestamped reactions
  * and comments to videos from multiple platforms.
  * 
- * @version 4.0.0 - Added ZIP export, fixed exports, improved video embeds
+ * @version 5.0.0 - Offline Pack ZIP (video + comments), direct video URLs,
+ *                  real metadata, comment editing/search, keyboard shortcuts
  */
 
 // ============================================
@@ -12,11 +13,16 @@
 // ============================================
 
 const CONFIG = {
-  MAX_FILE_SIZE: 100 * 1024 * 1024,
+  MAX_FILE_SIZE: 2 * 1024 * 1024 * 1024,      // 2 GB for local playback / ZIP
+  EMBED_VIDEO_LIMIT: 150 * 1024 * 1024,       // base64-in-HTML export cap
   TIMELINE_UPDATE_INTERVAL: 500,
   TOAST_DURATION: 3000,
   DEBOUNCE_DELAY: 300,
+  METADATA_TIMEOUT: 6000,
+  MAX_RECENT_VIDEOS: 6,
 };
+
+const DIRECT_VIDEO_EXTENSIONS = ['mp4', 'webm', 'ogv', 'ogg', 'mov', 'm4v'];
 
 const VIDEO_PATTERNS = {
   youtube: [
@@ -75,6 +81,7 @@ const PROVIDER_NAMES = {
   odysee: 'Odysee',
   vk: 'VK',
   upload: 'Local',
+  direct: 'Direct Video',
 };
 
 const PLATFORM_ICONS = {
@@ -89,6 +96,7 @@ const PLATFORM_ICONS = {
   odysee: '🌊',
   vk: '💬',
   upload: '📁',
+  direct: '🎞️',
 };
 
 // ============================================
@@ -111,6 +119,9 @@ const state = {
   useIframeApi: false,
   videoAspectRatio: null,
   originalVideoUrl: null,
+  videoAuthor: null,
+  videoThumbnail: null,
+  editingComment: null,
 };
 
 // Transcription state
@@ -150,6 +161,8 @@ function cacheElements() {
     'transcriptSection', 'transcriptList', 'transcriptEmpty', 'transcriptCount',
     'importTranscriptBtn', 'copyTranscriptBtn', 'exportTranscriptBtn',
     'addAllTranscriptBtn', 'clearTranscriptBtn',
+    'exportPDFBtn', 'exportCSVBtn', 'exportJSONBtn', 'exportTXTBtn', 'exportSRTBtn',
+    'searchComments', 'recentVideos', 'recentVideosList',
   ];
 
   ids.forEach(id => {
@@ -250,6 +263,63 @@ function isLocalFile() {
   return window.location.protocol === 'file:';
 }
 
+function isNativeVideoProvider(provider = state.currentProvider) {
+  return provider === 'upload' || provider === 'direct';
+}
+
+function getNativeVideoElement() {
+  return $('#localVideo');
+}
+
+function hashString(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+function getUrlVideoExtension(url) {
+  try {
+    const pathname = new URL(url).pathname.toLowerCase();
+    const ext = pathname.split('.').pop();
+    return DIRECT_VIDEO_EXTENSIONS.includes(ext) ? ext : null;
+  } catch {
+    return null;
+  }
+}
+
+// Fetch real video metadata (title, author, thumbnail) via the CORS-friendly
+// noembed.com oEmbed proxy. Fails silently — the app works fine without it.
+async function fetchVideoMetadata(url) {
+  if (!url || isNativeVideoProvider()) return;
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), CONFIG.METADATA_TIMEOUT);
+    const response = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(url)}`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!response.ok) return;
+
+    const meta = await response.json();
+    if (meta.error) return;
+
+    if (meta.title) {
+      state.videoTitle = meta.title;
+      if (elements.videoTitleDisplay) elements.videoTitleDisplay.textContent = meta.title;
+      document.title = `${meta.title} - ReactVid`;
+    }
+    if (meta.author_name) state.videoAuthor = meta.author_name;
+    if (meta.thumbnail_url) state.videoThumbnail = meta.thumbnail_url;
+
+    updateRecentVideoTitle(url, state.videoTitle);
+  } catch {
+    // Offline or provider not supported by noembed — keep the generic title
+  }
+}
+
 function getVideoEmbedUrl() {
   switch (state.currentProvider) {
     case 'youtube':
@@ -324,7 +394,10 @@ function detectPlatform(url) {
   if (urlLower.includes('vk.com')) {
     return 'vk';
   }
-  
+  if (getUrlVideoExtension(url)) {
+    return 'direct';
+  }
+
   return null;
 }
 
@@ -410,8 +483,8 @@ function getCurrentTime() {
     if (state.currentProvider === 'vimeo' && state.vimeoPlayer) {
       return state.currentTime;
     }
-    if (state.currentProvider === 'upload') {
-      const video = $('#localVideo');
+    if (isNativeVideoProvider()) {
+      const video = getNativeVideoElement();
       return video ? video.currentTime : 0;
     }
     return state.currentTime;
@@ -458,6 +531,7 @@ function showReactionModal(emoji) {
 }
 
 function showCommentModal(prefillText = '', prefillTimestamp = null) {
+  state.editingComment = null;
   if (elements.commentText) elements.commentText.value = prefillText;
   if (elements.commentCharCount) elements.commentCharCount.textContent = prefillText.length.toString();
   
@@ -474,19 +548,26 @@ function showCommentModal(prefillText = '', prefillTimestamp = null) {
   elements.commentText?.focus();
 }
 
+let activeConfirmHandler = null;
+
 function showConfirmModal(message, onConfirm) {
   const messageEl = $('#confirmMessage');
   if (messageEl) messageEl.textContent = message;
-  
-  showModal(elements.confirmModal);
-  
-  const handleConfirm = () => {
+
+  // Drop any stale handler so callbacks never stack across confirm/cancel cycles
+  if (activeConfirmHandler) {
+    elements.confirmOk?.removeEventListener('click', activeConfirmHandler);
+  }
+
+  activeConfirmHandler = () => {
     hideModal(elements.confirmModal);
+    elements.confirmOk?.removeEventListener('click', activeConfirmHandler);
+    activeConfirmHandler = null;
     onConfirm();
-    elements.confirmOk?.removeEventListener('click', handleConfirm);
   };
-  
-  elements.confirmOk?.addEventListener('click', handleConfirm);
+
+  elements.confirmOk?.addEventListener('click', activeConfirmHandler);
+  showModal(elements.confirmModal);
 }
 
 // ============================================
@@ -750,7 +831,8 @@ function seekToTime(seconds) {
       break;
       
     case 'upload':
-      const video = $('#localVideo');
+    case 'direct':
+      const video = getNativeVideoElement();
       if (video) {
         video.currentTime = time;
         video.play().catch(() => {});
@@ -801,6 +883,7 @@ const PLATFORM_ASPECT_RATIOS = {
   tiktok: 'vertical',
   instagram: 'vertical',
   upload: 'auto',
+  direct: 'auto',
 };
 
 function clearVideoAspectClasses() {
@@ -863,6 +946,34 @@ function detectUploadedVideoAspectRatio(videoElement) {
 // 13. VIDEO PLAYER INITIALIZATION
 // ============================================
 
+function setupNativeVideo(src, type) {
+  elements.videoContainer.innerHTML = `
+    <video id="localVideo" controls playsinline preload="metadata" style="width:100%;height:100%;object-fit:contain;background:#000;">
+      <source src="${src}" type="${type || 'video/mp4'}">
+      Your browser does not support the video tag.
+    </video>`;
+
+  const video = getNativeVideoElement();
+  if (!video) return;
+
+  detectUploadedVideoAspectRatio(video);
+
+  video.addEventListener('loadedmetadata', () => {
+    state.videoDuration = video.duration || 300;
+    if (elements.timelineDuration) {
+      elements.timelineDuration.textContent = formatTime(video.duration);
+    }
+  });
+
+  video.addEventListener('timeupdate', () => {
+    state.currentTime = video.currentTime;
+  });
+
+  video.addEventListener('error', () => {
+    showToast('Error playing video. Format may not be supported.', 'error');
+  });
+}
+
 async function initializePlayer(videoId) {
   if (!videoId && state.currentProvider !== 'upload') {
     showToast('Invalid video URL', 'error');
@@ -878,6 +989,8 @@ async function initializePlayer(videoId) {
     state.currentTime = 0;
     state.useIframeApi = false;
     state.videoAspectRatio = null;
+    state.videoAuthor = null;
+    state.videoThumbnail = null;
     transcriptionState.transcript = [];
     transcriptionState.isTranscribing = false;
     
@@ -1004,34 +1117,19 @@ async function initializePlayer(videoId) {
           toggleLoading(false);
           return;
         }
-        
+
         setVideoAspectRatio('upload');
-        const videoURL = URL.createObjectURL(state.uploadedVideo);
-        elements.videoContainer.innerHTML = `
-          <video id="localVideo" controls playsinline style="width:100%;height:100%;object-fit:contain;background:#000;">
-            <source src="${videoURL}" type="${state.uploadedVideo.type}">
-            Your browser does not support the video tag.
-          </video>`;
+        setupNativeVideo(URL.createObjectURL(state.uploadedVideo), state.uploadedVideo.type);
         state.videoTitle = state.uploadedVideo.name || 'Uploaded Video';
-        
-        const video = $('#localVideo');
-        if (video) {
-          detectUploadedVideoAspectRatio(video);
-          
-          video.addEventListener('loadedmetadata', () => {
-            state.videoDuration = video.duration || 300;
-            if (elements.timelineDuration) {
-              elements.timelineDuration.textContent = formatTime(video.duration);
-            }
-          });
-          
-          video.addEventListener('timeupdate', () => {
-            state.currentTime = video.currentTime;
-          });
-          
-          video.addEventListener('error', () => {
-            showToast('Error playing video. Format may not be supported.', 'error');
-          });
+        break;
+
+      case 'direct':
+        setVideoAspectRatio('direct');
+        setupNativeVideo(state.originalVideoUrl, `video/${getUrlVideoExtension(state.originalVideoUrl) === 'ogv' ? 'ogg' : (getUrlVideoExtension(state.originalVideoUrl) || 'mp4')}`);
+        try {
+          state.videoTitle = decodeURIComponent(new URL(state.originalVideoUrl).pathname.split('/').pop()) || 'Direct Video';
+        } catch {
+          state.videoTitle = 'Direct Video';
         }
         break;
         
@@ -1043,7 +1141,15 @@ async function initializePlayer(videoId) {
     
     state.videoLoaded = true;
     state.currentVideoId = videoId || `local-${Date.now()}`;
-    
+
+    // Real title/author/thumbnail (async, non-blocking)
+    if (!isNativeVideoProvider() && state.originalVideoUrl) {
+      fetchVideoMetadata(state.originalVideoUrl);
+    }
+    if (state.originalVideoUrl && state.currentProvider !== 'upload') {
+      addRecentVideo(state.originalVideoUrl, state.videoTitle, state.currentProvider);
+    }
+
     if (elements.videoPlatform) {
       elements.videoPlatform.textContent = PROVIDER_NAMES[state.currentProvider];
     }
@@ -1076,28 +1182,39 @@ async function initializePlayer(videoId) {
 // 14. COMMENTS & REACTIONS
 // ============================================
 
+function getCommentPlainText(commentEl) {
+  const textEl = commentEl.querySelector('.comment-text');
+  if (!textEl) return '';
+  const clone = textEl.cloneNode(true);
+  clone.querySelector('.reaction-emoji')?.remove();
+  return clone.textContent.trim();
+}
+
 function addComment({ text, timestamp, type = 'comment', emoji = null }) {
   const comment = document.createElement('div');
   comment.className = `comment ${type === 'reaction' ? 'reaction' : ''}`;
   comment.dataset.timestamp = timestamp;
-  
+
   const timeStr = formatTime(timestamp);
   let content = sanitizeHTML(text);
-  
+
   if (type === 'reaction' && emoji) {
     content = `<span class="reaction-emoji">${emoji}</span>${content}`;
   }
-  
+
   comment.innerHTML = `
     <span class="timestamp" data-time="${timestamp}" title="Click to jump to ${timeStr}">[${timeStr}]</span>
     <div class="comment-content">
       <span class="comment-text">${content}</span>
     </div>
+    <button class="comment-edit" title="Edit">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    </button>
     <button class="comment-delete" title="Delete">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>
   `;
-  
+
   // Add delete handler
   comment.querySelector('.comment-delete')?.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -1107,7 +1224,14 @@ function addComment({ text, timestamp, type = 'comment', emoji = null }) {
     updateUI();
     showToast('Comment deleted');
   });
-  
+
+  // Edit handler — reuses the comment modal in edit mode
+  comment.querySelector('.comment-edit')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showCommentModal(getCommentPlainText(comment), parseInt(comment.dataset.timestamp) || 0);
+    state.editingComment = comment;
+  });
+
   if (state.sortOrder === 'desc') {
     elements.commentsList.insertBefore(comment, elements.commentsList.firstChild);
   } else {
@@ -1122,11 +1246,10 @@ function addComment({ text, timestamp, type = 'comment', emoji = null }) {
 function saveComments() {
   const comments = Array.from(elements.commentsList.children).map(c => {
     const isReaction = c.classList.contains('reaction');
-    const textEl = c.querySelector('.comment-text');
-    const emojiEl = textEl?.querySelector('.reaction-emoji');
-    
+    const emojiEl = c.querySelector('.reaction-emoji');
+
     return {
-      text: textEl?.textContent.replace(emojiEl?.textContent || '', '').trim() || '',
+      text: getCommentPlainText(c),
       timestamp: parseInt(c.dataset.timestamp) || 0,
       type: isReaction ? 'reaction' : 'comment',
       emoji: emojiEl?.textContent || null,
@@ -1180,8 +1303,84 @@ function toggleSortOrder() {
   
   elements.commentsList.innerHTML = '';
   sorted.forEach(c => elements.commentsList.appendChild(c));
-  
+
   showToast(`Sorted by time (${state.sortOrder === 'desc' ? 'newest first' : 'oldest first'})`);
+}
+
+function filterComments(query) {
+  const q = (query || '').trim().toLowerCase();
+  Array.from(elements.commentsList?.children || []).forEach(c => {
+    const match = !q || getCommentPlainText(c).toLowerCase().includes(q) ||
+      formatTime(parseInt(c.dataset.timestamp) || 0).includes(q);
+    c.style.display = match ? '' : 'none';
+  });
+}
+
+// ============================================
+// 14b. RECENT VIDEOS
+// ============================================
+
+const RECENTS_KEY = 'reactvid_recent_videos';
+
+function getRecentVideos() {
+  try {
+    return JSON.parse(localStorage.getItem(RECENTS_KEY)) || [];
+  } catch {
+    return [];
+  }
+}
+
+function addRecentVideo(url, title, provider) {
+  try {
+    let recents = getRecentVideos().filter(r => r.url !== url);
+    recents.unshift({ url, title, provider, date: Date.now() });
+    recents = recents.slice(0, CONFIG.MAX_RECENT_VIDEOS);
+    localStorage.setItem(RECENTS_KEY, JSON.stringify(recents));
+    renderRecentVideos();
+  } catch {}
+}
+
+function updateRecentVideoTitle(url, title) {
+  try {
+    const recents = getRecentVideos();
+    const entry = recents.find(r => r.url === url);
+    if (entry && title) {
+      entry.title = title;
+      localStorage.setItem(RECENTS_KEY, JSON.stringify(recents));
+      renderRecentVideos();
+    }
+  } catch {}
+}
+
+function renderRecentVideos() {
+  const recents = getRecentVideos();
+  if (!elements.recentVideos || !elements.recentVideosList) return;
+
+  if (recents.length === 0) {
+    elements.recentVideos.setAttribute('hidden', '');
+    return;
+  }
+
+  elements.recentVideos.removeAttribute('hidden');
+  elements.recentVideosList.innerHTML = '';
+
+  recents.forEach(r => {
+    const chip = document.createElement('button');
+    chip.className = 'recent-chip';
+    chip.title = r.url;
+    chip.innerHTML = `
+      <span class="recent-chip__icon">${PLATFORM_ICONS[r.provider] || '▶️'}</span>
+      <span class="recent-chip__title">${sanitizeHTML((r.title || r.url).substring(0, 40))}</span>
+    `;
+    chip.addEventListener('click', () => {
+      if (elements.videoLink) {
+        elements.videoLink.value = r.url;
+        updateDetectedPlatform(r.url);
+        elements.loadVideoBtn?.click();
+      }
+    });
+    elements.recentVideosList.appendChild(chip);
+  });
 }
 
 // ============================================
@@ -1759,7 +1958,7 @@ function getCommentsData() {
     time: formatTime(parseInt(c.dataset.timestamp) || 0),
     type: c.classList.contains('reaction') ? 'reaction' : 'comment',
     emoji: c.querySelector('.reaction-emoji')?.textContent || null,
-    text: c.querySelector('.comment-text')?.textContent.replace(/^[\u{1F300}-\u{1F9FF}]/u, '').trim() || '',
+    text: getCommentPlainText(c),
   }));
 }
 
@@ -1801,18 +2000,20 @@ function exportText() {
   showToast('Exported as Text!', 'success');
 }
 
-function exportPDF() {
+async function exportPDF() {
   const data = getCommentsData();
   if (data.length === 0) {
     showToast('No comments to export', 'error');
     return;
   }
-  
-  if (typeof window.jspdf === 'undefined') {
-    showToast('PDF library not loaded. Please refresh the page.', 'error');
+
+  try {
+    await loadJsPDF();
+  } catch (error) {
+    showToast(error.message, 'error');
     return;
   }
-  
+
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
   
@@ -1884,6 +2085,44 @@ function exportJSON() {
   showToast('Exported as JSON!', 'success');
 }
 
+// Comments as SRT subtitles — open the video in VLC & co. with your notes overlaid
+function buildCommentsSRT(data) {
+  const sorted = [...data].sort((a, b) => a.timestamp - b.timestamp);
+  let srt = '';
+  sorted.forEach((d, index) => {
+    const next = sorted[index + 1];
+    const end = Math.min(d.timestamp + 5, next ? Math.max(next.timestamp - 0.2, d.timestamp + 1) : d.timestamp + 5);
+    const label = d.type === 'reaction' && d.emoji ? `${d.emoji} ` : '';
+    srt += `${index + 1}\n${formatSRTTime(d.timestamp)} --> ${formatSRTTime(end)}\n${label}${d.text}\n\n`;
+  });
+  return srt;
+}
+
+function exportCommentsSRT() {
+  const data = getCommentsData();
+  if (data.length === 0) {
+    showToast('No comments to export', 'error');
+    return;
+  }
+  downloadFile(buildCommentsSRT(data), `${state.videoTitle}_comments.srt`, 'text/plain');
+  showToast('Comments exported as SRT subtitles!', 'success');
+}
+
+// Load jsPDF on demand so the app stays light
+function loadJsPDF() {
+  return new Promise((resolve, reject) => {
+    if (window.jspdf?.jsPDF) {
+      resolve();
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    script.onload = () => window.jspdf?.jsPDF ? resolve() : reject(new Error('jsPDF failed to initialize'));
+    script.onerror = () => reject(new Error('Could not load the PDF library (are you offline?)'));
+    document.head.appendChild(script);
+  });
+}
+
 function getYouTubeWatchUrl() {
   if (state.currentProvider === 'youtube' || state.currentProvider === 'youtube_shorts') {
     return `https://www.youtube.com/watch?v=${state.currentVideoId}`;
@@ -1921,13 +2160,29 @@ function getTimelineMarkersData() {
   }));
 }
 
+// Builds a provider-aware seek URL (embed reload with a start offset)
+function getSeekableEmbedInfo() {
+  const videoId = state.currentVideoId;
+  switch (state.currentProvider) {
+    case 'youtube':
+    case 'youtube_shorts':
+      return { embedUrl: `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`, seekTemplate: `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&autoplay=1&start={s}` };
+    case 'vimeo':
+      return { embedUrl: `https://player.vimeo.com/video/${videoId}`, seekTemplate: `https://player.vimeo.com/video/${videoId}?autoplay=1#t={s}s` };
+    case 'dailymotion':
+      return { embedUrl: `https://www.dailymotion.com/embed/video/${videoId}`, seekTemplate: `https://www.dailymotion.com/embed/video/${videoId}?autoplay=1&start={s}` };
+    default:
+      return { embedUrl: getVideoEmbedUrl(), seekTemplate: null };
+  }
+}
+
 // Main HTML generator for online videos (YouTube, Vimeo, etc.)
 function generateHTMLContent() {
   const data = getCommentsData();
   const markers = getTimelineMarkersData();
   const videoId = state.currentVideoId;
-  const isYouTube = state.currentProvider === 'youtube' || state.currentProvider === 'youtube_shorts';
-  
+  const { embedUrl, seekTemplate } = getSeekableEmbedInfo();
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2190,15 +2445,15 @@ function generateHTMLContent() {
   
   <div class="video-section">
     <div class="embed-wrapper">
-      <iframe 
+      <iframe
         id="yt-iframe"
-        src="https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+        src="${embedUrl}"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowfullscreen>
       </iframe>
     </div>
-    
-    <div class="seek-controls">
+
+    <div class="seek-controls"${seekTemplate ? '' : ' style="display:none"'}>
       <span>⏱️ Jump to:</span>
       <input type="text" id="seek-input" placeholder="0:00">
       <button id="seek-btn">Go</button>
@@ -2245,12 +2500,12 @@ function generateHTMLContent() {
   </div>
 
   <script>
-    const videoId = '${videoId}';
     const duration = ${state.videoDuration};
+    const seekTemplate = ${JSON.stringify(seekTemplate)};
     const iframe = document.getElementById('yt-iframe');
     const seekBtn = document.getElementById('seek-btn');
     const seekInput = document.getElementById('seek-input');
-    
+
     function parseTime(str) {
       if (!str) return 0;
       const parts = str.split(':').map(Number);
@@ -2258,7 +2513,7 @@ function generateHTMLContent() {
       if (parts.length === 2) return parts[0] * 60 + parts[1];
       return parseInt(str) || 0;
     }
-    
+
     function formatTime(sec) {
       if (!sec || isNaN(sec)) return '0:00';
       const h = Math.floor(sec / 3600);
@@ -2267,11 +2522,12 @@ function generateHTMLContent() {
       const pad = n => n.toString().padStart(2, '0');
       return h > 0 ? h + ':' + pad(m) + ':' + pad(s) : m + ':' + pad(s);
     }
-    
+
     function seekTo(seconds) {
-      iframe.src = 'https://www.youtube.com/embed/' + videoId + '?rel=0&modestbranding=1&start=' + Math.floor(seconds) + '&autoplay=1';
+      if (!seekTemplate) return;
+      iframe.src = seekTemplate.replace('{s}', Math.floor(seconds));
     }
-    
+
     seekBtn.addEventListener('click', function() {
       var seconds = parseTime(seekInput.value);
       if (seconds >= 0) seekTo(seconds);
@@ -2318,8 +2574,12 @@ async function exportHTML() {
   }
   
   const isLocalVideo = state.currentProvider === 'upload' && state.uploadedVideo;
-  
+
   if (isLocalVideo) {
+    if (state.uploadedVideo.size > CONFIG.EMBED_VIDEO_LIMIT) {
+      showToast(`Video is too large to embed in a single HTML file (max ${formatFileSize(CONFIG.EMBED_VIDEO_LIMIT)}). Use the Offline Pack (ZIP) instead.`, 'warning');
+      return;
+    }
     // For local videos, embed as base64
     showToast('Creating HTML with embedded video...', 'info');
     
@@ -2627,524 +2887,748 @@ function generateHTMLWithEmbeddedVideo(videoBase64, videoType) {
 </html>`;
 }
 
+// Try to download a direct video URL into memory (works when the host allows CORS)
+async function fetchDirectVideoBlob(url) {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    if (blob.size === 0) return null;
+    return { blob, ext: getUrlVideoExtension(url) || 'mp4' };
+  } catch {
+    return null;
+  }
+}
+
+// Best-effort thumbnail download for platform videos (silent on CORS failure)
+async function fetchThumbnailForPack() {
+  const candidates = [];
+  if (state.videoThumbnail) candidates.push(state.videoThumbnail);
+  if (state.currentProvider === 'youtube' || state.currentProvider === 'youtube_shorts') {
+    candidates.push(`https://i.ytimg.com/vi/${state.currentVideoId}/maxresdefault.jpg`);
+    candidates.push(`https://i.ytimg.com/vi/${state.currentVideoId}/hqdefault.jpg`);
+  }
+
+  for (const url of candidates) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) continue;
+      const blob = await response.blob();
+      if (blob.size < 1024) continue; // skip placeholder images
+      const type = blob.type || 'image/jpeg';
+      const ext = type.includes('png') ? 'png' : type.includes('webp') ? 'webp' : 'jpg';
+      return { blob, filename: `thumbnail.${ext}` };
+    } catch {
+      // CORS blocked or offline — try the next candidate
+    }
+  }
+  return null;
+}
+
+// For platform videos (whose streams a browser cannot download), offer to
+// bundle a local copy of the video the user already has into the pack.
+function askForPackVideo() {
+  return new Promise((resolve) => {
+    $('#packVideoModal')?.remove();
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'packVideoModal';
+    modal.innerHTML = `
+      <div class="modal" role="dialog" aria-modal="true">
+        <div class="modal__header">
+          <div class="modal__title-wrapper">
+            <span class="modal__emoji">📦</span>
+            <h3 class="modal__title">Include the video file?</h3>
+          </div>
+          <button class="modal__close" id="packVideoClose" aria-label="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="modal__body">
+          <p style="margin-bottom:0.75rem;">To get the <strong>actual video (MP4)</strong> inside your Offline Pack, pick a copy from your computer — it will play fully offline, synced with all your comments.</p>
+          <p style="color:var(--color-text-muted);font-size:0.85rem;">Streaming platforms don't allow web apps to download their videos directly. If you have the right to an offline copy (your own upload, Creative Commons, or the platform's official download feature), attach it here — or skip and add it later next to <code>viewer.html</code> as <code>video.mp4</code>.</p>
+        </div>
+        <div class="modal__footer">
+          <button class="btn btn--ghost" id="packVideoSkip">Skip — pack without video</button>
+          <button class="btn btn--primary" id="packVideoChoose">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span>Attach video file</span>
+          </button>
+        </div>
+        <input type="file" id="packVideoInput" accept="video/*" hidden>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    const finish = (file) => {
+      modal.remove();
+      resolve(file);
+    };
+
+    modal.querySelector('#packVideoChoose').addEventListener('click', () => {
+      modal.querySelector('#packVideoInput').click();
+    });
+    modal.querySelector('#packVideoInput').addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (file && file.type.startsWith('video/')) {
+        finish(file);
+      } else if (file) {
+        showToast('Please choose a video file', 'error');
+      }
+    });
+    modal.querySelector('#packVideoSkip').addEventListener('click', () => finish(null));
+    modal.querySelector('#packVideoClose').addEventListener('click', () => finish(null));
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) finish(null);
+    });
+  });
+}
+
 async function exportZIP() {
   const data = getCommentsData();
-  if (data.length === 0) {
-    showToast('No comments to export', 'error');
+  const hasTranscript = transcriptionState.transcript.length > 0;
+  const isLocalVideo = state.currentProvider === 'upload' && state.uploadedVideo;
+  const isDirectVideo = state.currentProvider === 'direct' && state.originalVideoUrl;
+
+  if (data.length === 0 && !hasTranscript && !isLocalVideo && !isDirectVideo) {
+    showToast('Nothing to export yet — add a comment or reaction first', 'error');
     return;
   }
-  
+
   if (typeof JSZip === 'undefined') {
     showToast('ZIP library not loaded. Please refresh the page.', 'error');
     return;
   }
-  
-  showToast('Creating ZIP package...', 'info');
-  
+
+  showToast('Building your Offline Pack...', 'info');
+
   try {
     const zip = new JSZip();
-    const folderName = sanitizeFileName(state.videoTitle) || 'reactvid_export';
+    const folderName = sanitizeFileName(state.videoTitle.replace(/\.(mp4|webm|ogv|ogg|mov|m4v|mkv|avi)$/i, '')) || 'reactvid_export';
     const folder = zip.folder(folderName);
-    
-    // For local uploads, include the video file
+
     let videoFileName = null;
-    const isLocalVideo = state.currentProvider === 'upload' && state.uploadedVideo;
-    
+    let videoIncluded = false;
+    let thumbnailFile = null;
+
     if (isLocalVideo) {
-      showToast('Adding video to ZIP (this may take a moment)...', 'info');
       videoFileName = sanitizeFileName(state.uploadedVideo.name) || 'video.mp4';
-      
-      // Add video file to ZIP
-      const videoData = await state.uploadedVideo.arrayBuffer();
-      folder.file(videoFileName, videoData);
+      // Video is already compressed — STORE it instead of re-deflating
+      folder.file(videoFileName, state.uploadedVideo, { compression: 'STORE' });
+      videoIncluded = true;
+    } else if (isDirectVideo) {
+      showToast('Downloading the video into the pack — this can take a while...', 'info');
+      const result = await fetchDirectVideoBlob(state.originalVideoUrl);
+      if (result) {
+        videoFileName = `video.${result.ext}`;
+        folder.file(videoFileName, result.blob, { compression: 'STORE' });
+        videoIncluded = true;
+      } else {
+        showToast('The video host blocks direct downloads — pack will include everything else.', 'warning');
+      }
+    } else {
+      // Platform video (YouTube & co.): browsers can't fetch their streams,
+      // so offer to bundle a local copy the user already has.
+      const localCopy = await askForPackVideo();
+      if (localCopy) {
+        const ext = (localCopy.name.split('.').pop() || 'mp4').toLowerCase();
+        videoFileName = `video.${DIRECT_VIDEO_EXTENSIONS.includes(ext) ? ext : 'mp4'}`;
+        folder.file(videoFileName, localCopy, { compression: 'STORE' });
+        videoIncluded = true;
+        showToast(`Video "${localCopy.name}" added to the pack`, 'success');
+      }
+
+      // Grab the thumbnail for the offline viewer when possible
+      thumbnailFile = await fetchThumbnailForPack();
+      if (thumbnailFile) {
+        folder.file(thumbnailFile.filename, thumbnailFile.blob, { compression: 'STORE' });
+      }
     }
-    
-    // Add HTML file with embedded video (use local file for uploads)
-    const htmlContent = generateHTMLContentForZIP(videoFileName);
-    folder.file('index.html', htmlContent);
-    
-    // Add JSON data
+
+    // Interactive offline viewer
+    folder.file('viewer.html', generateOfflineViewerHTML({
+      videoFileName,
+      videoIncluded,
+      thumbnailFileName: thumbnailFile ? thumbnailFile.filename : null,
+    }));
+
+    // Machine-readable data
     const jsonData = {
       video: {
         title: state.videoTitle,
+        author: state.videoAuthor,
         provider: state.currentProvider,
+        providerName: PROVIDER_NAMES[state.currentProvider],
         id: state.currentVideoId,
         url: state.originalVideoUrl || getVideoEmbedUrl(),
+        watchUrl: getVideoWatchUrl() || null,
         duration: state.videoDuration,
-        localFile: videoFileName || null,
+        localFile: videoFileName,
+        videoIncluded,
       },
       exportDate: new Date().toISOString(),
-      exportVersion: '4.0.0',
+      exportVersion: '5.0.0',
       comments: data,
       transcript: transcriptionState.transcript,
       stats: {
         totalComments: data.filter(c => c.type === 'comment').length,
         totalReactions: data.filter(c => c.type === 'reaction').length,
-        avgTimestamp: data.length > 0 
+        avgTimestamp: data.length > 0
           ? Math.floor(data.reduce((sum, c) => sum + c.timestamp, 0) / data.length)
           : 0,
-      }
+      },
     };
     folder.file('data.json', JSON.stringify(jsonData, null, 2));
-    
-    // Add CSV file
-    let csv = 'timestamp,time,type,emoji,text\n';
-    data.forEach(d => {
-      csv += `${d.timestamp},"${d.time}","${d.type}","${d.emoji || ''}","${d.text.replace(/"/g, '""')}"\n`;
-    });
-    folder.file('comments.csv', csv);
-    
-    // Add plain text file
-    let textContent = `ReactVid Export\n`;
-    textContent += `${'='.repeat(50)}\n\n`;
-    textContent += `Video: ${state.videoTitle}\n`;
-    textContent += `Platform: ${PROVIDER_NAMES[state.currentProvider]}\n`;
-    textContent += `Duration: ${formatTime(state.videoDuration)}\n`;
-    textContent += `Export Date: ${new Date().toLocaleString()}\n`;
-    textContent += `Total Items: ${data.length}\n\n`;
-    textContent += `${'='.repeat(50)}\n\n`;
-    textContent += `COMMENTS & REACTIONS\n`;
-    textContent += `${'-'.repeat(50)}\n\n`;
-    
-    data.forEach(d => {
-      textContent += `[${d.time}] ${d.type === 'reaction' ? d.emoji + ' ' : ''}${d.text}\n\n`;
-    });
-    folder.file('comments.txt', textContent);
-    
-    // Add SRT transcript if available
-    if (transcriptionState.transcript.length > 0) {
+
+    if (data.length > 0) {
+      // CSV
+      let csv = 'timestamp,time,type,emoji,text\n';
+      data.forEach(d => {
+        csv += `${d.timestamp},"${d.time}","${d.type}","${d.emoji || ''}","${d.text.replace(/"/g, '""')}"\n`;
+      });
+      folder.file('comments.csv', csv);
+
+      // Plain text
+      let textContent = `ReactVid Offline Pack\n${'='.repeat(50)}\n\n`;
+      textContent += `Video: ${state.videoTitle}\n`;
+      if (state.videoAuthor) textContent += `Author: ${state.videoAuthor}\n`;
+      textContent += `Platform: ${PROVIDER_NAMES[state.currentProvider]}\n`;
+      textContent += `Duration: ${formatTime(state.videoDuration)}\n`;
+      textContent += `Export Date: ${new Date().toLocaleString()}\n`;
+      textContent += `Total Items: ${data.length}\n\n`;
+      textContent += `${'='.repeat(50)}\n\nCOMMENTS & REACTIONS\n${'-'.repeat(50)}\n\n`;
+      data.forEach(d => {
+        textContent += `[${d.time}] ${d.type === 'reaction' ? d.emoji + ' ' : ''}${d.text}\n\n`;
+      });
+      folder.file('comments.txt', textContent);
+
+      // Comments as SRT subtitles — drop onto the video in VLC/mpv
+      folder.file('comments.srt', buildCommentsSRT(data));
+    }
+
+    // Transcript as SRT
+    if (hasTranscript) {
       const sorted = [...transcriptionState.transcript].sort((a, b) => a.timestamp - b.timestamp);
       let srt = '';
       sorted.forEach((item, index) => {
-        const startTime = formatSRTTime(item.timestamp);
-        const endTime = formatSRTTime(item.timestamp + 3);
-        srt += `${index + 1}\n${startTime} --> ${endTime}\n${item.text}\n\n`;
+        srt += `${index + 1}\n${formatSRTTime(item.timestamp)} --> ${formatSRTTime(item.timestamp + 3)}\n${item.text}\n\n`;
       });
       folder.file('transcript.srt', srt);
     }
-    
-    // Add README
-    const readme = `# ReactVid Export
+
+    // README
+    const watchUrl = getVideoWatchUrl();
+    const readme = `# ReactVid Offline Pack
 
 ## ${state.videoTitle}
-
+${state.videoAuthor ? `**Author:** ${state.videoAuthor}\n` : ''}
 **Platform:** ${PROVIDER_NAMES[state.currentProvider]}
 **Export Date:** ${new Date().toLocaleString()}
+${watchUrl ? `**Watch online:** ${watchUrl}\n` : ''}
+## Start here
 
-## Files Included
+Open **viewer.html** in any browser — it works completely offline and shows the
+video (when available) side by side with every comment and reaction, synced to
+playback.
 
-- \`index.html\` - Interactive HTML viewer with video player
-${isLocalVideo ? `- \`${videoFileName}\` - The video file` : ''}
-- \`data.json\` - Complete data in JSON format
-- \`comments.csv\` - Spreadsheet-compatible format
-- \`comments.txt\` - Plain text format
-${transcriptionState.transcript.length > 0 ? '- `transcript.srt` - Video transcript in SRT format' : ''}
+## Files included
 
+- \`viewer.html\` — interactive offline viewer (open this!)
+${videoIncluded ? `- \`${videoFileName}\` — the video file\n` : ''}${thumbnailFile ? `- \`${thumbnailFile.filename}\` — video thumbnail\n` : ''}- \`data.json\` — complete data (comments, transcript, metadata)
+${data.length > 0 ? '- `comments.csv` — spreadsheet format (Excel / Google Sheets)\n- `comments.txt` — plain text\n- `comments.srt` — your comments as subtitles: open the video in VLC and load this file to see your notes on top of the video\n' : ''}${hasTranscript ? '- `transcript.srt` — transcript in SRT format\n' : ''}${!videoIncluded && !isNativeVideoProvider() ? '- `GET-THE-VIDEO.md` — how to add the video for full offline playback\n' : ''}
 ## Statistics
 
-- **Total Comments:** ${data.filter(c => c.type === 'comment').length}
-- **Total Reactions:** ${data.filter(c => c.type === 'reaction').length}
-- **Video Duration:** ${formatTime(state.videoDuration)}
-
-## Usage
-
-1. Open \`index.html\` in any web browser
-2. Click timestamps to jump to that moment in the video
-3. Import \`data.json\` into other applications
-4. Open \`comments.csv\` in Excel or Google Sheets
-
-${isLocalVideo ? '**Note:** Keep the video file in the same folder as index.html!' : ''}
+- **Comments:** ${data.filter(c => c.type === 'comment').length}
+- **Reactions:** ${data.filter(c => c.type === 'reaction').length}
+- **Duration:** ${formatTime(state.videoDuration)}
 
 ---
-*Exported with ReactVid*
+*Exported with ReactVid — https://videotag.github.io/videotag/*
 `;
     folder.file('README.md', readme);
-    
-    // Generate ZIP
+
+    // Honest guidance when the video itself couldn't be bundled
+    if (!videoIncluded) {
+      const getVideo = `# Adding the video for full offline playback
+
+Web pages cannot download videos from streaming platforms like ${PROVIDER_NAMES[state.currentProvider]} —
+their streams are protected and their terms of service restrict downloading.
+
+If you have the right to an offline copy (it's your own upload, it's
+Creative-Commons licensed, or the platform offers an official download /
+offline feature), save the file **in this folder** named:
+
+- \`video.mp4\` (or \`video.webm\`, \`video.m4v\`, \`video.mov\`)
+
+Then reopen **viewer.html** — it detects the file automatically and plays it
+with all your comments synced. You can also click "Load video file" inside the
+viewer and pick a copy from anywhere on your computer.
+
+Tip: \`comments.srt\` can be loaded as a subtitle track in VLC or mpv to see
+your comments directly on top of the video.
+${watchUrl ? `\nOriginal video: ${watchUrl}\n` : ''}`;
+      folder.file('GET-THE-VIDEO.md', getVideo);
+    }
+
     showToast('Compressing files...', 'info');
-    const content = await zip.generateAsync({ 
+    const content = await zip.generateAsync({
       type: 'blob',
       compression: 'DEFLATE',
-      compressionOptions: { level: 6 }
-    }, (metadata) => {
-      // Progress callback
-      if (metadata.percent) {
-        const percent = Math.round(metadata.percent);
-        if (percent % 20 === 0) {
-          console.log(`ZIP progress: ${percent}%`);
-        }
-      }
+      compressionOptions: { level: 6 },
+      streamFiles: true,
     });
-    
-    downloadBlob(content, `${folderName}.zip`);
-    showToast('ZIP package exported successfully!', 'success');
-    
+
+    downloadBlob(content, `${folderName}_offline_pack.zip`);
+    showToast('Offline Pack exported successfully!', 'success');
+
   } catch (error) {
     console.error('ZIP export error:', error);
-    showToast('Failed to create ZIP package: ' + error.message, 'error');
+    showToast('Failed to create Offline Pack: ' + error.message, 'error');
   }
 }
 
-// Generate HTML specifically for ZIP export (with local video support)
-function generateHTMLContentForZIP(localVideoFile = null) {
+// Self-contained offline viewer bundled inside the Offline Pack.
+// No external requests: works from file:// with zero network access.
+function generateOfflineViewerHTML({ videoFileName, videoIncluded, thumbnailFileName }) {
   const data = getCommentsData();
   const watchUrl = getVideoWatchUrl();
-  const isYouTube = state.currentProvider === 'youtube' || state.currentProvider === 'youtube_shorts';
-  const isLocalVideo = localVideoFile !== null;
-  
-  const thumbnailUrl = isYouTube 
-    ? `https://img.youtube.com/vi/${state.currentVideoId}/maxresdefault.jpg`
-    : null;
-  
+
+  const pack = {
+    title: state.videoTitle,
+    author: state.videoAuthor,
+    provider: state.currentProvider,
+    providerName: PROVIDER_NAMES[state.currentProvider],
+    watchUrl: watchUrl || null,
+    duration: state.videoDuration,
+    exportDate: new Date().toISOString(),
+    videoFile: videoFileName,
+    videoIncluded,
+    thumbnail: thumbnailFileName,
+    comments: data,
+    transcript: [...transcriptionState.transcript].sort((a, b) => a.timestamp - b.timestamp),
+  };
+
+  const packJSON = JSON.stringify(pack).replace(/</g, '\\u003c');
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${sanitizeHTML(state.videoTitle)} - ReactVid Export</title>
-  <style>
-    :root { 
-      --primary: #6366f1; 
-      --primary-light: #818cf8;
-      --secondary: #ec4899;
-      --bg: #05050a; 
-      --surface: #0f0f1a; 
-      --surface-elevated: #151522;
-      --text: #fff; 
-      --text-secondary: #a0a0b8;
-      --muted: #5a5a70; 
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { 
-      font-family: 'Segoe UI', system-ui, sans-serif; 
-      background: var(--bg); 
-      color: var(--text); 
-      line-height: 1.6; 
-      padding: 2rem; 
-      max-width: 900px; 
-      margin: 0 auto; 
-    }
-    .header { text-align: center; margin-bottom: 2rem; }
-    h1 { 
-      font-size: 2rem; 
-      margin-bottom: 0.5rem; 
-      background: linear-gradient(135deg, #6366f1, #ec4899); 
-      -webkit-background-clip: text; 
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    .meta { color: var(--muted); font-size: 0.875rem; margin-bottom: 1rem; }
-    .meta span {
-      display: inline-block;
-      padding: 0.25rem 0.75rem;
-      background: var(--surface);
-      border-radius: 20px;
-      margin: 0.25rem;
-    }
-    .video-container { 
-      background: #000; 
-      border-radius: 16px; 
-      overflow: hidden; 
-      margin-bottom: 2rem; 
-      max-width: 720px;
-      margin-left: auto;
-      margin-right: auto;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-    }
-    .video-container video {
-      width: 100%;
-      display: block;
-      max-height: 70vh;
-    }
-    .video-card { 
-      position: relative;
-      aspect-ratio: 16/9; 
-      background: #000; 
-      border-radius: 16px; 
-      overflow: hidden; 
-      margin-bottom: 2rem; 
-      max-width: 720px;
-      margin-left: auto;
-      margin-right: auto;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-      display: block;
-      text-decoration: none;
-    }
-    .video-card img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-    .video-overlay {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0,0,0,0.4);
-      transition: background 0.3s;
-    }
-    .video-card:hover .video-overlay { background: rgba(0,0,0,0.6); }
-    .play-button {
-      width: 80px;
-      height: 80px;
-      background: var(--primary);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 1rem;
-      transition: transform 0.3s, box-shadow 0.3s;
-      box-shadow: 0 4px 20px rgba(99, 102, 241, 0.5);
-    }
-    .video-card:hover .play-button {
-      transform: scale(1.1);
-      box-shadow: 0 8px 30px rgba(99, 102, 241, 0.7);
-    }
-    .play-button svg { width: 32px; height: 32px; fill: white; margin-left: 4px; }
-    .video-link {
-      color: white;
-      font-weight: 600;
-      font-size: 1.1rem;
-      padding: 0.5rem 1.5rem;
-      background: rgba(255,255,255,0.1);
-      border-radius: 8px;
-      backdrop-filter: blur(10px);
-    }
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-      gap: 1rem;
-      margin-bottom: 2rem;
-    }
-    .stat {
-      padding: 1.25rem;
-      background: var(--surface);
-      border-radius: 12px;
-      text-align: center;
-      border: 1px solid rgba(255,255,255,0.05);
-    }
-    .stat-value {
-      font-size: 1.75rem;
-      font-weight: 700;
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    .stat-label {
-      font-size: 0.75rem;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    h2 {
-      font-size: 1.25rem;
-      margin-bottom: 1rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    h2::before {
-      content: '';
-      display: block;
-      width: 4px;
-      height: 24px;
-      background: var(--primary);
-      border-radius: 2px;
-    }
-    .comments-list { display: flex; flex-direction: column; gap: 0.75rem; }
-    .comment { 
-      display: flex; 
-      gap: 1rem; 
-      padding: 1rem 1.25rem; 
-      background: var(--surface); 
-      border-radius: 12px; 
-      border: 1px solid rgba(255,255,255,0.05);
-      transition: transform 0.2s, box-shadow 0.2s;
-    }
-    .comment:hover {
-      transform: translateX(4px);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
-    }
-    .comment.reaction { border-left: 3px solid #fbbf24; }
-    .timestamp { 
-      padding: 0.35rem 0.75rem; 
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      border-radius: 8px; 
-      font-family: 'SF Mono', 'Fira Code', monospace; 
-      font-size: 0.8rem; 
-      flex-shrink: 0;
-      font-weight: 600;
-      cursor: pointer;
-      text-decoration: none;
-      color: white;
-      border: none;
-    }
-    .timestamp:hover { opacity: 0.9; transform: scale(1.05); }
-    .text { flex: 1; color: var(--text-secondary); }
-    .emoji { font-size: 1.25rem; margin-right: 0.5rem; }
-    .footer {
-      text-align: center;
-      margin-top: 3rem;
-      padding-top: 2rem;
-      border-top: 1px solid rgba(255,255,255,0.05);
-      color: var(--muted);
-      font-size: 0.875rem;
-    }
-    .footer a { color: var(--primary-light); text-decoration: none; }
-    .current-time-display {
-      text-align: center;
-      padding: 0.5rem;
-      background: var(--surface);
-      border-radius: 8px;
-      margin-bottom: 1rem;
-      font-family: monospace;
-      font-size: 1.2rem;
-      color: var(--primary-light);
-    }
-    @media (max-width: 600px) {
-      body { padding: 1rem; }
-      .comment { flex-direction: column; gap: 0.5rem; }
-      .timestamp { align-self: flex-start; }
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${sanitizeHTML(state.videoTitle)} — ReactVid Offline Pack</title>
+<style>
+  :root {
+    --primary: #6366f1; --primary-light: #818cf8; --secondary: #ec4899;
+    --bg: #05050a; --surface: #0f0f1a; --surface-2: #151522; --surface-3: #1a1a2a;
+    --text: #fff; --text-2: #a0a0b8; --muted: #5a5a70;
+    --yellow: #fbbf24; --cyan: #22d3ee; --green: #10b981;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.6;
+    padding: 1.5rem; max-width: 1400px; margin: 0 auto;
+  }
+  header { text-align: center; margin-bottom: 1.5rem; }
+  h1 {
+    font-size: 1.75rem; margin-bottom: 0.5rem;
+    background: linear-gradient(135deg, #6366f1, #ec4899);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .meta { color: var(--muted); font-size: 0.85rem; }
+  .meta span { display: inline-block; padding: 0.25rem 0.75rem; background: var(--surface); border-radius: 20px; margin: 0.2rem; }
+  .offline-badge { color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+  .layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 1.5rem; align-items: start; }
+  @media (max-width: 950px) { .layout { grid-template-columns: 1fr; } .player-col { position: static !important; } }
+  .player-col { position: sticky; top: 1rem; }
+  .player-box { background: var(--surface); border-radius: 16px; padding: 1rem; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+  .player-box video { width: 100%; max-height: 62vh; border-radius: 12px; background: #000; display: block; }
+  .fallback { text-align: center; padding: 1.5rem 1rem; border: 2px dashed rgba(255,255,255,0.12); border-radius: 12px; }
+  .fallback img { max-width: 100%; border-radius: 10px; margin-bottom: 1rem; opacity: 0.9; }
+  .fallback h3 { margin-bottom: 0.5rem; font-size: 1.05rem; }
+  .fallback p { color: var(--text-2); font-size: 0.85rem; margin-bottom: 1rem; }
+  .fallback.dragover { border-color: var(--primary); background: rgba(99,102,241,0.08); }
+  .btn {
+    display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1.25rem;
+    background: linear-gradient(135deg, #6366f1, #ec4899); color: #fff; border: none;
+    border-radius: 8px; font-weight: 600; font-size: 0.9rem; cursor: pointer; text-decoration: none;
+  }
+  .btn:hover { opacity: 0.92; }
+  .btn--ghost { background: var(--surface-2); border: 1px solid rgba(255,255,255,0.1); }
+  .player-tools { display: flex; gap: 0.5rem; justify-content: center; margin-top: 0.75rem; flex-wrap: wrap; }
+  .time-row { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.75rem; font-family: 'Consolas', monospace; font-size: 0.85rem; color: var(--text-2); }
+  .timeline { flex: 1; position: relative; height: 26px; cursor: pointer; }
+  .timeline-track { position: absolute; top: 50%; left: 0; right: 0; height: 6px; transform: translateY(-50%); background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; }
+  .timeline-progress { height: 100%; width: 0; background: linear-gradient(90deg, var(--primary), var(--secondary)); }
+  .marker { position: absolute; top: 50%; width: 10px; height: 10px; margin-left: -5px; transform: translateY(-50%); border-radius: 50%; cursor: pointer; z-index: 5; }
+  .marker:hover { transform: translateY(-50%) scale(1.5); }
+  .marker.reaction { background: var(--yellow); box-shadow: 0 0 8px rgba(251,191,36,0.5); }
+  .marker.comment { background: var(--cyan); box-shadow: 0 0 8px rgba(34,211,238,0.5); }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-top: 1rem; }
+  .stat { padding: 0.9rem; background: var(--surface); border-radius: 12px; text-align: center; border: 1px solid rgba(255,255,255,0.05); }
+  .stat-value { font-size: 1.4rem; font-weight: 700; background: linear-gradient(135deg, var(--primary), var(--secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .stat-label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .panel { background: var(--surface); border-radius: 16px; padding: 1.25rem; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+  .panel h2 { font-size: 1.1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+  .panel h2::before { content: ''; width: 4px; height: 20px; background: var(--primary); border-radius: 2px; }
+  .toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .toolbar input {
+    flex: 1; min-width: 140px; padding: 0.5rem 0.85rem; background: var(--surface-2);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: var(--text); font-size: 0.85rem;
+  }
+  .toolbar input:focus { outline: none; border-color: var(--primary); }
+  .chip { padding: 0.45rem 0.9rem; background: var(--surface-2); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; color: var(--text-2); font-size: 0.8rem; cursor: pointer; }
+  .chip.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .comments { display: flex; flex-direction: column; gap: 0.6rem; max-height: 65vh; overflow-y: auto; padding-right: 0.25rem; }
+  .comments::-webkit-scrollbar { width: 8px; }
+  .comments::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 4px; }
+  .comment {
+    display: flex; gap: 0.75rem; padding: 0.8rem 1rem; background: var(--surface-2);
+    border-radius: 10px; border: 1px solid rgba(255,255,255,0.05); cursor: pointer;
+    transition: border-color 0.2s, background 0.2s, transform 0.15s;
+  }
+  .comment:hover { transform: translateX(3px); border-color: var(--primary); }
+  .comment.reaction { border-left: 3px solid var(--yellow); }
+  .comment.active { border-color: var(--primary); background: var(--surface-3); box-shadow: 0 0 16px rgba(99,102,241,0.25); }
+  .ts {
+    padding: 0.3rem 0.6rem; background: linear-gradient(135deg, var(--primary), var(--secondary));
+    border-radius: 6px; font-family: 'Consolas', monospace; font-size: 0.75rem;
+    font-weight: 600; color: #fff; flex-shrink: 0; align-self: flex-start; border: none; cursor: pointer;
+  }
+  .ctext { flex: 1; color: var(--text-2); font-size: 0.9rem; word-break: break-word; }
+  .emoji { font-size: 1.1rem; margin-right: 0.4rem; }
+  details { margin-top: 1.5rem; }
+  details summary { cursor: pointer; font-weight: 600; padding: 0.75rem 1rem; background: var(--surface); border-radius: 10px; }
+  .transcript { margin-top: 0.75rem; display: flex; flex-direction: column; gap: 0.4rem; max-height: 40vh; overflow-y: auto; }
+  .tline { display: flex; gap: 0.6rem; padding: 0.45rem 0.75rem; background: var(--surface-2); border-radius: 8px; font-size: 0.85rem; cursor: pointer; }
+  .tline:hover { background: var(--surface-3); }
+  .tline .ts { font-size: 0.7rem; padding: 0.2rem 0.45rem; }
+  .empty { text-align: center; color: var(--muted); padding: 2rem 1rem; }
+  footer { text-align: center; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid rgba(255,255,255,0.05); color: var(--muted); font-size: 0.8rem; }
+  footer a { color: var(--primary-light); text-decoration: none; }
+  .hint { position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%); background: var(--surface-3); border: 1px solid rgba(255,255,255,0.15); padding: 0.6rem 1.2rem; border-radius: 10px; font-size: 0.85rem; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 50; }
+  .hint.show { opacity: 1; }
+</style>
 </head>
 <body>
-  <div class="header">
-    <h1>${sanitizeHTML(state.videoTitle)}</h1>
-    <p class="meta">
-      <span>📺 ${PROVIDER_NAMES[state.currentProvider]}</span>
-      <span>📅 ${new Date().toLocaleDateString()}</span>
-      <span>💬 ${data.length} items</span>
-    </p>
-  </div>
-  
-  ${isLocalVideo ? `
-  <!-- Local Video Player -->
-  <div class="video-container">
-    <video id="videoPlayer" controls>
-      <source src="${localVideoFile}" type="${state.uploadedVideo?.type || 'video/mp4'}">
-      Your browser does not support the video tag.
-    </video>
-  </div>
-  <div class="current-time-display">Current: <span id="currentTime">0:00</span> / ${formatTime(state.videoDuration)}</div>
-  ` : (watchUrl ? `
-  <!-- Online Video Link -->
-  <a href="${watchUrl}" target="_blank" rel="noopener" class="video-card">
-    ${thumbnailUrl ? `<img src="${thumbnailUrl}" alt="Video thumbnail" onerror="this.style.display='none'">` : ''}
-    <div class="video-overlay">
-      <div class="play-button">
-        <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+<header>
+  <h1 id="title"></h1>
+  <p class="meta" id="meta"></p>
+</header>
+
+<div class="layout">
+  <div class="player-col">
+    <div class="player-box">
+      <div id="playerBox"></div>
+      <div class="time-row">
+        <span id="curTime">0:00</span>
+        <div class="timeline" id="timeline">
+          <div class="timeline-track"><div class="timeline-progress" id="progress"></div></div>
+          <div id="markers"></div>
+        </div>
+        <span id="durTime">0:00</span>
       </div>
-      <span class="video-link">▶ Watch on ${PROVIDER_NAMES[state.currentProvider]}</span>
+      <div class="player-tools">
+        <button class="btn btn--ghost" id="pickBtn">📂 Load video file</button>
+        <a class="btn btn--ghost" id="watchLink" target="_blank" rel="noopener" style="display:none">🔗 Watch online</a>
+      </div>
+      <input type="file" id="filePick" accept="video/*" hidden>
     </div>
-  </a>
-  ` : `
-  <div class="video-card">
-    <div class="video-overlay" style="background: linear-gradient(135deg, var(--surface), var(--surface-elevated));">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:48px;height:48px;opacity:0.5;margin-bottom:1rem;">
-        <polygon points="5 3 19 12 5 21 5 3"></polygon>
-      </svg>
-      <p>Video not available</p>
-    </div>
-  </div>
-  `)}
-
-  <div class="stats">
-    <div class="stat">
-      <div class="stat-value">${data.filter(d => d.type === 'comment').length}</div>
-      <div class="stat-label">Comments</div>
-    </div>
-    <div class="stat">
-      <div class="stat-value">${data.filter(d => d.type === 'reaction').length}</div>
-      <div class="stat-label">Reactions</div>
-    </div>
-    <div class="stat">
-      <div class="stat-value">${formatTime(state.videoDuration)}</div>
-      <div class="stat-label">Duration</div>
+    <div class="stats">
+      <div class="stat"><div class="stat-value" id="statC">0</div><div class="stat-label">Comments</div></div>
+      <div class="stat"><div class="stat-value" id="statR">0</div><div class="stat-label">Reactions</div></div>
+      <div class="stat"><div class="stat-value" id="statD">0:00</div><div class="stat-label">Duration</div></div>
     </div>
   </div>
 
-  <h2>Comments & Reactions</h2>
-  <div class="comments-list">
-    ${data.map(d => {
-      const timeLink = isYouTube 
-        ? `https://www.youtube.com/watch?v=${state.currentVideoId}&t=${d.timestamp}s`
-        : (state.currentProvider === 'vimeo' 
-          ? `https://vimeo.com/${state.currentVideoId}#t=${d.timestamp}s`
-          : watchUrl);
-      
-      if (isLocalVideo) {
-        return `
-    <div class="comment${d.type === 'reaction' ? ' reaction' : ''}">
-      <button class="timestamp" onclick="seekTo(${d.timestamp})" title="Jump to ${d.time}">[${d.time}]</button>
-      <span class="text">${d.emoji ? `<span class="emoji">${d.emoji}</span>` : ''}${sanitizeHTML(d.text)}</span>
-    </div>`;
-      } else {
-        return `
-    <div class="comment${d.type === 'reaction' ? ' reaction' : ''}">
-      <a href="${timeLink || '#'}" target="_blank" rel="noopener" class="timestamp" title="Watch at ${d.time}">[${d.time}]</a>
-      <span class="text">${d.emoji ? `<span class="emoji">${d.emoji}</span>` : ''}${sanitizeHTML(d.text)}</span>
-    </div>`;
-      }
-    }).join('')}
+  <div class="panel">
+    <h2>Comments &amp; Reactions</h2>
+    <div class="toolbar">
+      <input type="search" id="search" placeholder="Search comments...">
+      <button class="chip active" data-f="all">All</button>
+      <button class="chip" data-f="comment">💬 Comments</button>
+      <button class="chip" data-f="reaction">⚡ Reactions</button>
+    </div>
+    <div class="comments" id="comments"></div>
+    <details id="transcriptBox" style="display:none">
+      <summary>📝 Transcript (<span id="tCount">0</span> lines)</summary>
+      <div class="transcript" id="transcript"></div>
+    </details>
   </div>
+</div>
 
-  <div class="footer">
-    <p>Exported from <strong>ReactVid</strong> — Video Reactions & Comments Tool</p>
-    ${!isLocalVideo && watchUrl ? `<p style="margin-top:0.5rem;"><a href="${watchUrl}" target="_blank">🔗 Watch full video on ${PROVIDER_NAMES[state.currentProvider]}</a></p>` : ''}
-  </div>
+<footer>
+  <p>Offline Pack exported from <strong>ReactVid</strong> — <a href="https://videotag.github.io/videotag/" target="_blank" rel="noopener">videotag.github.io/videotag</a></p>
+  <p>Space: play/pause &nbsp;·&nbsp; ← → : seek 5s &nbsp;·&nbsp; Click a timestamp to jump</p>
+</footer>
 
-  ${isLocalVideo ? `
-  <script>
-    const video = document.getElementById('videoPlayer');
-    const currentTimeDisplay = document.getElementById('currentTime');
-    
-    // Format seconds to MM:SS or HH:MM:SS
-    function formatTime(seconds) {
-      if (!seconds || isNaN(seconds)) return '0:00';
-      const hrs = Math.floor(seconds / 3600);
-      const mins = Math.floor((seconds % 3600) / 60);
-      const secs = Math.floor(seconds % 60);
-      const pad = n => n.toString().padStart(2, '0');
-      return hrs > 0 ? hrs + ':' + pad(mins) + ':' + pad(secs) : mins + ':' + pad(secs);
+<div class="hint" id="hint"></div>
+
+<script>
+var PACK = ${packJSON};
+var video = null;
+var videoReady = false;
+var filter = 'all';
+var query = '';
+
+function fmt(sec) {
+  if (!sec || isNaN(sec)) return '0:00';
+  sec = Math.floor(sec);
+  var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  var p = function(n) { return (n < 10 ? '0' : '') + n; };
+  return h > 0 ? h + ':' + p(m) + ':' + p(s) : m + ':' + p(s);
+}
+
+function esc(t) {
+  var d = document.createElement('div');
+  d.textContent = t;
+  return d.innerHTML;
+}
+
+function hint(msg) {
+  var el = document.getElementById('hint');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(hint._t);
+  hint._t = setTimeout(function() { el.classList.remove('show'); }, 2600);
+}
+
+// ---- Header ----
+document.getElementById('title').textContent = PACK.title;
+document.title = PACK.title + ' — ReactVid Offline Pack';
+var metaBits = ['<span>📺 ' + esc(PACK.providerName) + '</span>'];
+if (PACK.author) metaBits.push('<span>👤 ' + esc(PACK.author) + '</span>');
+metaBits.push('<span>📅 ' + new Date(PACK.exportDate).toLocaleDateString() + '</span>');
+metaBits.push('<span>💬 ' + PACK.comments.length + ' items</span>');
+metaBits.push('<span class="offline-badge">● Works offline</span>');
+document.getElementById('meta').innerHTML = metaBits.join('');
+
+// ---- Stats ----
+document.getElementById('statC').textContent = PACK.comments.filter(function(c) { return c.type === 'comment'; }).length;
+document.getElementById('statR').textContent = PACK.comments.filter(function(c) { return c.type === 'reaction'; }).length;
+document.getElementById('statD').textContent = fmt(PACK.duration);
+document.getElementById('durTime').textContent = fmt(PACK.duration);
+
+if (PACK.watchUrl) {
+  var wl = document.getElementById('watchLink');
+  wl.href = PACK.watchUrl;
+  wl.style.display = '';
+}
+
+// ---- Video setup: bundled file, sibling video.* probe, or manual pick ----
+function candidateSources() {
+  if (PACK.videoFile) return [PACK.videoFile];
+  return ['video.mp4', 'video.webm', 'video.m4v', 'video.mov', 'video.ogv'];
+}
+
+function showFallback() {
+  var box = document.getElementById('playerBox');
+  var thumb = PACK.thumbnail ? '<img src="' + PACK.thumbnail + '" alt="Video thumbnail" onerror="this.remove()">' : '';
+  box.innerHTML =
+    '<div class="fallback" id="dropzone">' + thumb +
+    '<h3>Video file not found</h3>' +
+    '<p>Drop a copy of the video here (or use “Load video file”) and it plays fully offline, synced with your comments.<br>' +
+    'See <strong>GET-THE-VIDEO.md</strong> in this folder for details.</p>' +
+    (PACK.watchUrl ? '<a class="btn" href="' + PACK.watchUrl + '" target="_blank" rel="noopener">▶ Watch online instead</a>' : '') +
+    '</div>';
+
+  var dz = document.getElementById('dropzone');
+  dz.addEventListener('dragover', function(e) { e.preventDefault(); dz.classList.add('dragover'); });
+  dz.addEventListener('dragleave', function() { dz.classList.remove('dragover'); });
+  dz.addEventListener('drop', function(e) {
+    e.preventDefault();
+    dz.classList.remove('dragover');
+    var f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadPickedFile(f);
+  });
+}
+
+function attachVideo(v) {
+  video = v;
+  video.addEventListener('loadedmetadata', function() {
+    videoReady = true;
+    if (video.duration && isFinite(video.duration)) {
+      PACK.duration = video.duration;
+      document.getElementById('durTime').textContent = fmt(video.duration);
+      document.getElementById('statD').textContent = fmt(video.duration);
+      renderMarkers();
     }
-    
-    // Update current time display
-    video.addEventListener('timeupdate', function() {
-      currentTimeDisplay.textContent = formatTime(video.currentTime);
-    });
-    
-    // Seek to specific time
-    function seekTo(seconds) {
-      video.currentTime = seconds;
-      video.play();
-      
-      // Scroll video into view
-      video.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+  video.addEventListener('timeupdate', tick);
+}
+
+function buildVideo() {
+  var box = document.getElementById('playerBox');
+  var v = document.createElement('video');
+  v.controls = true;
+  v.playsInline = true;
+  v.preload = 'metadata';
+
+  var sources = candidateSources();
+  sources.forEach(function(src, i) {
+    var s = document.createElement('source');
+    s.src = src;
+    if (i === sources.length - 1) {
+      s.addEventListener('error', function() { videoReady = false; showFallback(); });
     }
-    
-    // Highlight current comment based on video time
-    video.addEventListener('timeupdate', function() {
-      const currentTime = video.currentTime;
-      document.querySelectorAll('.comment').forEach(comment => {
-        const btn = comment.querySelector('.timestamp');
-        if (btn) {
-          const time = parseInt(btn.getAttribute('onclick').match(/\\d+/)[0]);
-          if (Math.abs(currentTime - time) < 2) {
-            comment.style.borderColor = 'var(--primary)';
-            comment.style.background = 'var(--surface-elevated)';
-          } else {
-            comment.style.borderColor = '';
-            comment.style.background = '';
-          }
-        }
-      });
-    });
-  </script>
-  ` : ''}
+    v.appendChild(s);
+  });
+
+  box.innerHTML = '';
+  box.appendChild(v);
+  attachVideo(v);
+}
+
+function loadPickedFile(file) {
+  if (file.type && file.type.indexOf('video/') !== 0) {
+    hint('That does not look like a video file');
+    return;
+  }
+  var box = document.getElementById('playerBox');
+  var v = document.createElement('video');
+  v.controls = true;
+  v.playsInline = true;
+  v.src = URL.createObjectURL(file);
+  box.innerHTML = '';
+  box.appendChild(v);
+  attachVideo(v);
+  videoReady = true;
+  hint('Loaded: ' + file.name);
+}
+
+document.getElementById('pickBtn').addEventListener('click', function() {
+  document.getElementById('filePick').click();
+});
+document.getElementById('filePick').addEventListener('change', function(e) {
+  var f = e.target.files && e.target.files[0];
+  if (f) loadPickedFile(f);
+});
+
+buildVideo();
+
+// ---- Seek ----
+function seekTo(t) {
+  if (videoReady && video) {
+    video.currentTime = t;
+    video.play().catch(function() {});
+    if (window.innerWidth <= 950) video.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } else if (PACK.watchUrl && (PACK.provider === 'youtube' || PACK.provider === 'youtube_shorts')) {
+    window.open(PACK.watchUrl + '&t=' + Math.floor(t) + 's', '_blank');
+  } else if (PACK.watchUrl && PACK.provider === 'vimeo') {
+    window.open(PACK.watchUrl + '#t=' + Math.floor(t) + 's', '_blank');
+  } else {
+    hint('Load the video file to enable seeking');
+  }
+}
+
+// ---- Timeline ----
+function renderMarkers() {
+  var wrap = document.getElementById('markers');
+  wrap.innerHTML = '';
+  var dur = PACK.duration || 1;
+  PACK.comments.forEach(function(c) {
+    var m = document.createElement('div');
+    m.className = 'marker ' + c.type;
+    m.style.left = Math.min((c.timestamp / dur) * 100, 100) + '%';
+    m.title = '[' + c.time + '] ' + c.text.substring(0, 60);
+    m.addEventListener('click', function(e) { e.stopPropagation(); seekTo(c.timestamp); });
+    wrap.appendChild(m);
+  });
+}
+
+document.getElementById('timeline').addEventListener('click', function(e) {
+  var rect = this.getBoundingClientRect();
+  seekTo(((e.clientX - rect.left) / rect.width) * (PACK.duration || 0));
+});
+
+function tick() {
+  if (!video) return;
+  var t = video.currentTime;
+  document.getElementById('curTime').textContent = fmt(t);
+  document.getElementById('progress').style.width = Math.min((t / (PACK.duration || 1)) * 100, 100) + '%';
+  var rows = document.querySelectorAll('#comments .comment');
+  rows.forEach(function(row) {
+    var rt = parseFloat(row.getAttribute('data-t'));
+    if (t >= rt && t < rt + 4) row.classList.add('active');
+    else row.classList.remove('active');
+  });
+}
+
+// ---- Comments ----
+function renderComments() {
+  var box = document.getElementById('comments');
+  box.innerHTML = '';
+  var q = query.toLowerCase();
+  var shown = 0;
+
+  var sorted = PACK.comments.slice().sort(function(a, b) { return a.timestamp - b.timestamp; });
+  sorted.forEach(function(c) {
+    if (filter !== 'all' && c.type !== filter) return;
+    if (q && c.text.toLowerCase().indexOf(q) === -1 && c.time.indexOf(q) === -1) return;
+    shown++;
+
+    var row = document.createElement('div');
+    row.className = 'comment' + (c.type === 'reaction' ? ' reaction' : '');
+    row.setAttribute('data-t', c.timestamp);
+    row.innerHTML =
+      '<button class="ts">[' + c.time + ']</button>' +
+      '<span class="ctext">' + (c.emoji ? '<span class="emoji">' + c.emoji + '</span>' : '') + esc(c.text) + '</span>';
+    row.addEventListener('click', function() { seekTo(c.timestamp); });
+    box.appendChild(row);
+  });
+
+  if (shown === 0) {
+    box.innerHTML = '<div class="empty">No comments match.</div>';
+  }
+}
+
+document.getElementById('search').addEventListener('input', function(e) {
+  query = e.target.value;
+  renderComments();
+});
+document.querySelectorAll('.chip').forEach(function(chip) {
+  chip.addEventListener('click', function() {
+    document.querySelectorAll('.chip').forEach(function(x) { x.classList.remove('active'); });
+    chip.classList.add('active');
+    filter = chip.getAttribute('data-f');
+    renderComments();
+  });
+});
+
+// ---- Transcript ----
+if (PACK.transcript.length > 0) {
+  document.getElementById('transcriptBox').style.display = '';
+  document.getElementById('tCount').textContent = PACK.transcript.length;
+  var tBox = document.getElementById('transcript');
+  PACK.transcript.forEach(function(line) {
+    var el = document.createElement('div');
+    el.className = 'tline';
+    el.innerHTML = '<span class="ts">[' + fmt(line.timestamp) + ']</span><span>' + esc(line.text) + '</span>';
+    el.addEventListener('click', function() { seekTo(line.timestamp); });
+    tBox.appendChild(el);
+  });
+}
+
+// ---- Keyboard ----
+document.addEventListener('keydown', function(e) {
+  var tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea') return;
+  if (!videoReady || !video) return;
+  if (e.code === 'Space') {
+    e.preventDefault();
+    video.paused ? video.play() : video.pause();
+  } else if (e.key === 'ArrowRight') {
+    video.currentTime = Math.min(video.currentTime + 5, video.duration || 1e9);
+  } else if (e.key === 'ArrowLeft') {
+    video.currentTime = Math.max(video.currentTime - 5, 0);
+  }
+});
+
+renderMarkers();
+renderComments();
+</script>
 </body>
 </html>`;
 }
@@ -3169,13 +3653,14 @@ function handleFileSelect(e) {
   
   state.uploadedVideo = file;
   state.currentProvider = 'upload';
-  
+
   if (elements.uploadedFileName) elements.uploadedFileName.textContent = file.name;
   if (elements.uploadedFileSize) elements.uploadedFileSize.textContent = formatFileSize(file.size);
   elements.uploadedFileInfo?.removeAttribute('hidden');
-  
+
   showToast('Video file selected, loading...');
-  initializePlayer(null);
+  // Stable ID so comments persist across sessions for the same file
+  initializePlayer(`upload_${hashString(`${file.name}_${file.size}`)}`);
 }
 
 function removeUploadedFile() {
@@ -3213,8 +3698,10 @@ function initEventListeners() {
       return;
     }
     
-    const videoId = extractVideoID(url, state.currentProvider);
-    
+    const videoId = state.currentProvider === 'direct'
+      ? `direct_${hashString(url)}`
+      : extractVideoID(url, state.currentProvider);
+
     if (videoId) {
       initializePlayer(videoId);
     } else {
@@ -3255,6 +3742,11 @@ function initEventListeners() {
     state.vimeoPlayer = null;
     state.videoAspectRatio = null;
     state.originalVideoUrl = null;
+    state.videoAuthor = null;
+    state.videoThumbnail = null;
+    document.title = 'ReactVid - Video Reactions & Comments';
+    if (elements.searchComments) elements.searchComments.value = '';
+    renderRecentVideos();
     stopTranscription();
     showFeaturePanels(false);
     if (elements.videoLink) elements.videoLink.value = '';
@@ -3327,18 +3819,33 @@ function initEventListeners() {
       showToast('Please enter some text', 'error');
       return;
     }
-    
+
+    // Edit mode: update the existing comment in place
+    if (state.editingComment && state.editingComment.isConnected) {
+      const textEl = state.editingComment.querySelector('.comment-text');
+      if (textEl) {
+        const emojiEl = textEl.querySelector('.reaction-emoji');
+        textEl.innerHTML = (emojiEl ? emojiEl.outerHTML : '') + sanitizeHTML(text);
+        saveComments();
+        updateUI();
+      }
+      state.editingComment = null;
+      hideModal(elements.commentModal);
+      showToast('Comment updated!');
+      return;
+    }
+
     const prefillTimestamp = elements.commentModal?.dataset.prefillTimestamp;
     const timestamp = prefillTimestamp ? parseInt(prefillTimestamp) : Math.floor(getCurrentTime());
-    
+
     addComment({
       text,
       timestamp,
       type: 'comment',
     });
-    
+
     delete elements.commentModal?.dataset.prefillTimestamp;
-    
+
     hideModal(elements.commentModal);
     showToast('Comment added!');
   });
@@ -3389,18 +3896,58 @@ function initEventListeners() {
     }
   });
   
-  // Export handlers - only HTML and ZIP
+  // Export handlers
   elements.exportHTML?.addEventListener('click', () => {
     if (!validateExport()) return;
     exportHTML();
     closeExportDropdown();
   });
-  
+
+  // The Offline Pack is useful even with zero comments (video + metadata),
+  // so it only requires a loaded video
   elements.exportZIP?.addEventListener('click', () => {
-    if (!validateExport()) return;
+    if (!state.videoLoaded) {
+      showToast('Please load a video first', 'error');
+      return;
+    }
     exportZIP();
     closeExportDropdown();
   });
+
+  elements.exportPDFBtn?.addEventListener('click', () => {
+    if (!validateExport()) return;
+    exportPDF();
+    closeExportDropdown();
+  });
+
+  elements.exportCSVBtn?.addEventListener('click', () => {
+    if (!validateExport()) return;
+    exportCSV();
+    closeExportDropdown();
+  });
+
+  elements.exportJSONBtn?.addEventListener('click', () => {
+    if (!validateExport()) return;
+    exportJSON();
+    closeExportDropdown();
+  });
+
+  elements.exportTXTBtn?.addEventListener('click', () => {
+    if (!validateExport()) return;
+    exportText();
+    closeExportDropdown();
+  });
+
+  elements.exportSRTBtn?.addEventListener('click', () => {
+    if (!validateExport()) return;
+    exportCommentsSRT();
+    closeExportDropdown();
+  });
+
+  // Comment search
+  elements.searchComments?.addEventListener('input', debounce((e) => {
+    filterComments(e.target.value);
+  }, 150));
   
   // Modal overlays
   document.querySelectorAll('.modal-overlay').forEach(overlay => {
@@ -3409,14 +3956,94 @@ function initEventListeners() {
     });
   });
   
-  // Escape key
+  // Keyboard shortcuts
+  const EMOJI_KEYS = ['👍', '❤️', '😂', '😮', '😢', '😡', '🔥', '💡', '🎯', '❓'];
+
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
       document.querySelectorAll('.modal-overlay:not([hidden])').forEach(m => hideModal(m));
       $('#manualTranscriptModal')?.remove();
       closeExportDropdown();
+      return;
+    }
+
+    // Ctrl/Cmd+Enter submits the open modal
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      if (!elements.reactionModal?.hasAttribute('hidden')) {
+        e.preventDefault();
+        elements.submitReaction?.click();
+        return;
+      }
+      if (!elements.commentModal?.hasAttribute('hidden')) {
+        e.preventDefault();
+        elements.submitComment?.click();
+        return;
+      }
+    }
+
+    // Global shortcuts — only when a video is loaded, no modal open, not typing
+    const tag = (e.target.tagName || '').toLowerCase();
+    const typing = tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable;
+    const modalOpen = document.querySelector('.modal-overlay:not([hidden])') || $('#manualTranscriptModal');
+    if (!state.videoLoaded || typing || modalOpen || e.ctrlKey || e.metaKey || e.altKey) return;
+
+    if (e.key === 'c' || e.key === 'C') {
+      e.preventDefault();
+      showCommentModal();
+      return;
+    }
+
+    // 1–9 and 0 trigger the ten reaction emojis
+    if (/^[0-9]$/.test(e.key)) {
+      const index = e.key === '0' ? 9 : parseInt(e.key) - 1;
+      const emoji = EMOJI_KEYS[index];
+      if (emoji) {
+        e.preventDefault();
+        showReactionModal(emoji);
+      }
+      return;
+    }
+
+    // Playback controls for native video (uploads & direct URLs)
+    if (isNativeVideoProvider()) {
+      const video = getNativeVideoElement();
+      if (!video) return;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        video.paused ? video.play().catch(() => {}) : video.pause();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        video.currentTime = Math.min(video.currentTime + 5, video.duration || Infinity);
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        video.currentTime = Math.max(video.currentTime - 5, 0);
+      }
     }
   });
+
+  // Drag & drop a video file anywhere on the input card
+  const inputSection = $('.input-section');
+  if (inputSection) {
+    ['dragover', 'dragenter'].forEach(evt => {
+      inputSection.addEventListener(evt, (e) => {
+        e.preventDefault();
+        inputSection.classList.add('drop-active');
+      });
+    });
+    ['dragleave', 'dragend'].forEach(evt => {
+      inputSection.addEventListener(evt, () => inputSection.classList.remove('drop-active'));
+    });
+    inputSection.addEventListener('drop', (e) => {
+      e.preventDefault();
+      inputSection.classList.remove('drop-active');
+      const file = e.dataTransfer?.files?.[0];
+      if (file && file.type.startsWith('video/')) {
+        handleFileSelect({ target: { files: [file] } });
+      } else if (file) {
+        showToast('Please drop a video file', 'error');
+      }
+    });
+  }
   
   // Transcribe button
   elements.transcribeBtn?.addEventListener('click', () => {
@@ -3466,7 +4093,8 @@ function validateExport() {
 function init() {
   cacheElements();
   initEventListeners();
-  
+  renderRecentVideos();
+
   if (isLocalFile()) {
     console.log('Running from file:// - some features may be limited');
   }
