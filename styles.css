@@ -1,6 +1,6 @@
 /* ----------------------------------------
-   ReactVid - Video Reactions & Comments
-   Version 4.0.0
+   VideoLens - Video Reactions & Comments
+   Version 5.0.0
    ---------------------------------------- */
 
 /* ----------------------------------------
@@ -2083,4 +2083,432 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-surface-hover);
+}
+/* ----------------------------------------
+   24. Recent Videos
+   ---------------------------------------- */
+.recent-videos {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.recent-videos__label {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+.recent-videos__list {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.recent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-surface-elevated);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-full);
+  color: var(--color-text-secondary);
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  max-width: 240px;
+}
+
+.recent-chip:hover {
+  border-color: var(--color-primary);
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+  transform: translateY(-1px);
+}
+
+.recent-chip__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ----------------------------------------
+   25. Comments Search
+   ---------------------------------------- */
+.comments-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.comments-search svg {
+  position: absolute;
+  left: var(--space-3);
+  width: 14px;
+  height: 14px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.comments-search__input {
+  width: 160px;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-8);
+  background: var(--color-surface-elevated);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-full);
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  transition: var(--transition-fast);
+}
+
+.comments-search__input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  width: 200px;
+}
+
+.comments-search__input::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* ----------------------------------------
+   26. Comment Edit Button
+   ---------------------------------------- */
+.comment-edit {
+  position: absolute;
+  top: var(--space-2);
+  right: calc(var(--space-2) + 32px);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: var(--transition-base);
+}
+
+.comment:hover .comment-edit {
+  opacity: 1;
+}
+
+.comment-edit:hover {
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--color-primary-light);
+}
+
+.comment-edit svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ----------------------------------------
+   27. Drag & Drop State
+   ---------------------------------------- */
+.input-section.drop-active {
+  outline: 2px dashed var(--color-primary);
+  outline-offset: -8px;
+  background: rgba(99, 102, 241, 0.06);
+}
+
+/* ----------------------------------------
+   28. Export Menu (long list)
+   ---------------------------------------- */
+.export-dropdown__menu {
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+/* ----------------------------------------
+   29. Footer Shortcuts
+   ---------------------------------------- */
+.footer__shortcuts {
+  margin-top: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.footer__shortcuts kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  background: var(--color-surface-elevated);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--color-text-secondary);
+}
+
+/* ----------------------------------------
+   30. Accessibility
+   ---------------------------------------- */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ----------------------------------------
+   31. Export Toggle & Pack Video Dialog
+   ---------------------------------------- */
+.export-dropdown__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  user-select: none;
+}
+
+.export-dropdown__toggle:hover {
+  color: var(--color-text);
+}
+
+.export-dropdown__toggle input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.pack-video-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.pack-video-step {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-surface-elevated);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+}
+
+.pack-video-step__num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  background: var(--gradient-primary);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.pack-video-step p {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  margin: var(--space-1) 0 var(--space-2);
+}
+
+.pack-video-step strong {
+  font-size: var(--text-sm);
+}
+
+/* ----------------------------------------
+   32. Static Pages (About / Guide / FAQ)
+   ---------------------------------------- */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-4) 0 var(--space-6);
+}
+
+.page-logo {
+  font-size: var(--text-xl);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.page-logo span {
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.page-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.page-nav a {
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  font-size: var(--text-sm);
+  transition: var(--transition-fast);
+}
+
+.page-nav a:hover { color: var(--color-text); }
+
+.page {
+  max-width: 780px;
+  margin: 0 auto;
+  padding-bottom: var(--space-12);
+}
+
+.page h1 {
+  font-size: clamp(1.75rem, 4vw, var(--text-3xl));
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: var(--space-4);
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.page h2 {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  margin: var(--space-8) 0 var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.page h2::before {
+  content: '';
+  width: 4px;
+  height: 22px;
+  background: var(--color-primary);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.page p, .page li {
+  color: var(--color-text-secondary);
+  line-height: 1.7;
+  margin-bottom: var(--space-3);
+}
+
+.page ul, .page ol { padding-left: var(--space-6); margin-bottom: var(--space-4); }
+.page li { margin-bottom: var(--space-2); }
+.page strong { color: var(--color-text); }
+.page a { color: var(--color-primary-light); }
+.page code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--color-surface-elevated);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.page-lead {
+  font-size: var(--text-lg);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-6);
+}
+
+.page-callout {
+  padding: var(--space-4) var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-left: 3px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  margin: var(--space-4) 0;
+}
+
+.page-callout p:last-child { margin-bottom: 0; }
+
+.faq-item {
+  padding: var(--space-4) var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-3);
+}
+
+.faq-item h2 { margin: 0 0 var(--space-2); font-size: var(--text-lg); }
+.faq-item h2::before { display: none; }
+.faq-item p:last-child { margin-bottom: 0; }
+
+.footer__nav {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-5);
+  margin-top: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.footer__nav a {
+  color: var(--color-text-muted);
+  text-decoration: none;
+  font-size: var(--text-sm);
+  transition: var(--transition-fast);
+}
+
+.footer__nav a:hover { color: var(--color-primary-light); }
+
+/* ----------------------------------------
+   33. Star Prompt & Easter Eggs
+   ---------------------------------------- */
+.star-modal {
+  text-align: center;
+  overflow: visible;
+}
+
+.star-modal__star {
+  font-size: 3.5rem;
+  line-height: 1;
+  margin: var(--space-4) auto calc(-1 * var(--space-2));
+  animation: starBounce 1.6s var(--ease-bounce) infinite;
+  filter: drop-shadow(0 0 18px rgba(251, 191, 36, 0.45));
+}
+
+@keyframes starBounce {
+  0%, 100% { transform: translateY(0) rotate(-6deg); }
+  50% { transform: translateY(-10px) rotate(6deg); }
+}
+
+.emoji-rain {
+  position: fixed;
+  top: -3rem;
+  z-index: var(--z-toast);
+  pointer-events: none;
+  animation: emojiFall 3.2s linear forwards;
+}
+
+@keyframes emojiFall {
+  to {
+    transform: translateY(115vh) rotate(340deg);
+    opacity: 0.85;
+  }
 }

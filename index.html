@@ -3,9 +3,40 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="ReactVid - Add timestamped reactions and comments to videos from YouTube, TikTok, Vimeo and more">
-  <title>ReactVid - Video Reactions & Comments</title>
-  
+  <meta name="description" content="VideoLens - Add timestamped reactions and comments to videos from YouTube, TikTok, Vimeo, direct MP4 links and local files. Export everything as an offline ZIP pack.">
+  <meta name="theme-color" content="#05050a">
+  <meta property="og:title" content="VideoLens - Video Reactions & Comments">
+  <meta property="og:description" content="Add timestamped reactions and comments to any video. Export as an offline ZIP pack with the video, comments and transcript.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://vidlens.net/">
+  <meta property="og:site_name" content="VideoLens">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="VideoLens - Video Reactions & Comments">
+  <meta name="twitter:description" content="Add timestamped reactions and comments to any video. Export as an offline ZIP pack with the video, comments and transcript.">
+  <meta name="keywords" content="video comments, timestamped comments, video reactions, video annotation, video feedback tool, watch video offline, video notes, youtube comments export, offline video viewer">
+  <link rel="canonical" href="https://vidlens.net/">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%AC%3C/text%3E%3C/svg%3E">
+  <title>VideoLens - Video Reactions & Comments</title>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "VideoLens",
+    "url": "https://vidlens.net/",
+    "applicationCategory": "MultimediaApplication",
+    "operatingSystem": "Any (web browser)",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "description": "Add timestamped reactions and comments to videos from YouTube, TikTok, Vimeo, direct MP4 links and local files. Export everything as an offline ZIP pack with the video, comments and an offline viewer.",
+    "featureList": [
+      "Timestamped comments and emoji reactions",
+      "Offline Pack ZIP export with video and comments",
+      "Comments as SRT subtitles",
+      "Speech-to-text transcription",
+      "PDF, CSV, JSON, TXT, SRT and HTML export"
+    ]
+  }
+  </script>
+
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -39,7 +70,7 @@
           </svg>
         </span>
         <span class="hero__title-text">
-          React<span class="hero__title-accent">Vid</span>
+          Video<span class="hero__title-accent">Lens</span>
         </span>
       </h1>
       
@@ -62,7 +93,7 @@
               type="url" 
               id="videoLink" 
               class="input-field" 
-              placeholder="Paste any video URL (YouTube, TikTok, Vimeo...)"
+              placeholder="Paste any video URL (YouTube, TikTok, Vimeo, direct .mp4...)"
               autocomplete="off"
               spellcheck="false"
             >
@@ -123,6 +154,12 @@
           </div>
         </div>
         
+        <!-- Recent Videos -->
+        <div class="recent-videos" id="recentVideos" hidden>
+          <span class="recent-videos__label">Recent:</span>
+          <div class="recent-videos__list" id="recentVideosList"></div>
+        </div>
+
         <!-- Uploaded File Info -->
         <div class="upload-info" id="uploadedFileInfo" hidden>
           <div class="upload-info__icon">📹</div>
@@ -174,8 +211,8 @@
             <div class="feature-card__icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             </div>
-            <h3 class="feature-card__title">Export Anywhere</h3>
-            <p class="feature-card__desc">Download your notes as PDF, CSV, JSON, SRT, ZIP, or shareable HTML with embedded video.</p>
+            <h3 class="feature-card__title">Offline ZIP Pack</h3>
+            <p class="feature-card__desc">Export video + comments as a ZIP with an offline viewer, plus PDF, CSV, JSON, SRT and shareable HTML.</p>
           </div>
         </div>
       </section>
@@ -283,14 +320,38 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
               </button>
               <div class="export-dropdown__menu" id="exportDropdownMenu">
+                <label class="export-dropdown__toggle" title="Untick to export text comments only">
+                  <input type="checkbox" id="includeReactionsToggle" checked>
+                  <span>Include reactions</span>
+                </label>
+                <button class="export-dropdown__item" id="exportZIP">
+                  <span class="export-dropdown__icon">📦</span>
+                  <span>Offline Pack (ZIP)</span>
+                  <span class="export-dropdown__badge">VIDEO</span>
+                </button>
                 <button class="export-dropdown__item" id="exportHTML">
                   <span class="export-dropdown__icon">🌐</span>
                   <span>HTML (Single File)</span>
-                  <span class="export-dropdown__badge">VIDEO</span>
                 </button>
-                <button class="export-dropdown__item" id="exportZIP">
-                  <span class="export-dropdown__icon">📦</span>
-                  <span>ZIP Package</span>
+                <button class="export-dropdown__item" id="exportPDFBtn">
+                  <span class="export-dropdown__icon">📄</span>
+                  <span>PDF Document</span>
+                </button>
+                <button class="export-dropdown__item" id="exportCSVBtn">
+                  <span class="export-dropdown__icon">📊</span>
+                  <span>CSV Spreadsheet</span>
+                </button>
+                <button class="export-dropdown__item" id="exportJSONBtn">
+                  <span class="export-dropdown__icon">🧩</span>
+                  <span>JSON Data</span>
+                </button>
+                <button class="export-dropdown__item" id="exportTXTBtn">
+                  <span class="export-dropdown__icon">📝</span>
+                  <span>Plain Text</span>
+                </button>
+                <button class="export-dropdown__item" id="exportSRTBtn">
+                  <span class="export-dropdown__icon">💬</span>
+                  <span>SRT Subtitles</span>
                 </button>
               </div>
             </div>
@@ -315,6 +376,10 @@
             <span>Comments & Reactions</span>
           </h3>
           <div class="comments-actions">
+            <div class="comments-search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="search" id="searchComments" class="comments-search__input" placeholder="Search..." aria-label="Search comments">
+            </div>
             <button class="btn btn--ghost btn--sm" id="sortCommentsBtn" title="Sort by time">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="8" y2="18"/></svg>
               <span>Sort</span>
@@ -381,8 +446,17 @@
     <!-- Footer -->
     <footer class="footer">
       <p class="footer__text">
-        <span class="footer__logo">React<span>Vid</span></span>
+        <span class="footer__logo">Video<span>Lens</span></span>
         — Made with ❤️ for video enthusiasts
+      </p>
+      <nav class="footer__nav" aria-label="Site pages">
+        <a href="about.html">About</a>
+        <a href="guide.html">How it works</a>
+        <a href="faq.html">FAQ</a>
+        <a href="https://github.com/VideoTag/videotag" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+      <p class="footer__shortcuts">
+        <kbd>C</kbd> comment&nbsp;·&nbsp;<kbd>1</kbd>–<kbd>0</kbd> reactions&nbsp;·&nbsp;<kbd>Space</kbd> play/pause&nbsp;·&nbsp;<kbd>←</kbd><kbd>→</kbd> seek&nbsp;·&nbsp;<kbd>Ctrl</kbd>+<kbd>Enter</kbd> submit
       </p>
     </footer>
   </div>

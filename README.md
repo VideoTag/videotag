@@ -1,18 +1,19 @@
-# 🎬 VideoTAG: Video Reactions & Comments System
+# 🎬 VideoLens: Video Reactions & Comments System
 
-VideoTAG is a web application that allows users to add timestamped reactions and comments to videos from various platforms, creating an interactive viewing experience.
+VideoLens (formerly ReactVid / VideoTAG) is a web application that lets you add timestamped reactions and comments to videos from many platforms — and take **everything offline** as a self-contained ZIP pack (video + comments + interactive viewer).
 
-
+**Live app:** https://vidlens.net/ — see also [About](https://vidlens.net/about.html) · [How it works](https://vidlens.net/guide.html) · [FAQ](https://vidlens.net/faq.html)
 
 ## 📋 Table of Contents
 
 - [Features](#-features)
+- [Offline Pack](#-offline-pack-zip)
 - [Supported Platforms](#-supported-platforms)
 - [Architecture](#-architecture)
 - [Installation](#-installation)
 - [Usage](#-usage)
+- [Keyboard Shortcuts](#-keyboard-shortcuts)
 - [Export Options](#-export-options)
-- [Timeline & Analytics](#-timeline--analytics)
 - [Technical Details](#-technical-details)
 - [Contributing](#-contributing)
 - [License](#-license)
@@ -20,133 +21,145 @@ VideoTAG is a web application that allows users to add timestamped reactions and
 ## ✨ Features
 
 - Add timestamped comments and emoji reactions to videos
-- Support for videos from multiple platforms including YouTube, TikTok, Vimeo, etc.
-- Upload and comment on your own video files
-- Interactive timeline with reaction/comment markers
-- Analytics dashboard for comment and reaction statistics
-- Export comments in various formats (CSV, Text, PDF, HTML)
+- **Offline Pack export** — a ZIP with the video, all comments and a standalone offline viewer
+- Support for YouTube, TikTok, Vimeo, Twitch, **direct .mp4/.webm links** and more
+- Upload and comment on your own video files (up to 2 GB)
+- Real video titles, authors and thumbnails fetched automatically (oEmbed)
+- Edit and search comments; interactive timeline with clickable markers
+- Recent videos list — jump back into any video with one click
+- Live speech-to-text transcription or transcript import
+- Comments exportable as **SRT subtitles** (overlay your notes on the video in VLC!)
+- **"Include reactions" toggle** in the export menu — export text comments only, or even an empty pack (video + metadata)
+- Keyboard shortcuts, drag & drop upload, analytics dashboard
+- Zero build step, zero backend — everything runs and is stored in your browser
+
+## 📦 Offline Pack (ZIP)
+
+The flagship export. `Export → Offline Pack (ZIP)` produces a folder you can open **with no internet at all**:
+
+| File | Purpose |
+|------|---------|
+| `viewer.html` | Interactive offline viewer — video + synced comments, search, filters, timeline |
+| `video.mp4` / your file | **The actual video** (see below) |
+| `data.json` | Complete machine-readable data (comments, transcript, metadata) |
+| `comments.csv` / `comments.txt` | Spreadsheet & plain-text formats |
+| `comments.srt` | Your comments as subtitles — load into VLC/mpv on top of the video |
+| `transcript.srt` | Transcript (when available) |
+| `thumbnail.jpg` | Video thumbnail (platform videos) |
+| `README.md` | Pack contents & instructions |
+
+**How the video gets into the pack:**
+
+- **Local files** — bundled automatically.
+- **Direct video URLs** (`.mp4`, `.webm`, …) — downloaded straight into the ZIP (when the host allows cross-origin downloads).
+- **Streaming platforms (YouTube, TikTok, …)** — browsers cannot download their protected streams, and platform terms restrict it. At export time the app walks you through it: an **"Open video downloader"** button copies the video URL and opens an external open-source downloader (cobalt.tools) in a new tab; once you have the file, **attach it** and the MP4 ships inside the ZIP. Only download content you have the right to save. You can also just drop a `video.mp4` next to `viewer.html` later — the viewer picks it up automatically, or lets you load any file via a button/drag & drop.
 
 ## 🌐 Supported Platforms
 
-| Platform     | URL Format Examples                                    | Embed Support |
-|--------------|--------------------------------------------------------|:-------------:|
-| YouTube      | `https://youtu.be/VIDEO_ID`                            | ✅            |
-| TikTok       | `https://www.tiktok.com/@username/video/123456789`     | ✅            |
-| Vimeo        | `https://vimeo.com/123456789`                          | ✅            |
-| Dailymotion  | `https://www.dailymotion.com/video/x7yz1a2`            | ✅            |
-| Twitch       | `https://www.twitch.tv/videos/123456789`               | ✅            |
-| Facebook     | `https://www.facebook.com/watch/?v=123456789`          | ✅            |
-| Instagram    | `https://www.instagram.com/p/abCD123EfGh/`             | ✅            |
-| Odysee       | `https://odysee.com/@channel:4/video-name`             | ✅            |
-| VK           | `https://vk.com/video-12345_67890`                     | ✅            |
-| Local Files  | Upload MP4, WebM, OGG (max 100MB)                      | ✅            |
+| Platform     | URL Format Examples                                    | Embed | Video in ZIP |
+|--------------|--------------------------------------------------------|:-----:|:------------:|
+| YouTube      | `https://youtu.be/VIDEO_ID`                            | ✅    | attach/drop-in |
+| YouTube Shorts | `https://youtube.com/shorts/VIDEO_ID`                | ✅    | attach/drop-in |
+| TikTok       | `https://www.tiktok.com/@username/video/123456789`     | ✅    | attach/drop-in |
+| Vimeo        | `https://vimeo.com/123456789`                          | ✅    | attach/drop-in |
+| Dailymotion  | `https://www.dailymotion.com/video/x7yz1a2`            | ✅    | attach/drop-in |
+| Twitch       | `https://www.twitch.tv/videos/123456789`               | ✅    | attach/drop-in |
+| Facebook     | `https://www.facebook.com/watch/?v=123456789`          | ✅    | attach/drop-in |
+| Instagram    | `https://www.instagram.com/p/abCD123EfGh/`             | ✅    | attach/drop-in |
+| Odysee       | `https://odysee.com/@channel:4/video-name`             | ✅    | attach/drop-in |
+| VK           | `https://vk.com/video-12345_67890`                     | ✅    | attach/drop-in |
+| **Direct URL** | `https://example.com/video.mp4`                      | ✅    | ✅ automatic |
+| Local Files  | Upload MP4, WebM, OGG, MOV (max 2 GB)                  | ✅    | ✅ automatic |
 
 ## 🏗 Architecture
 
 ```mermaid
 flowchart TD
-    A[User] -->|Provides Video URL/Upload| B[Video Loading Module]
+    A[User] -->|URL / Upload / Direct .mp4| B[Video Loading Module]
     B -->|Creates| C[Video Player]
-    
-    A -->|Adds| D[Comments & Reactions]
+    B -->|oEmbed| M[Metadata: title, author, thumbnail]
+
+    A -->|Adds / Edits| D[Comments & Reactions]
     D -->|Stores In| E[Local Storage]
-    
+
     D -->|Updates| F[Timeline]
     D -->|Updates| G[Statistics]
-    
-    A -->|Exports| H[CSV/Text/PDF/HTML]
-    E -->|Provides Data For| H
+
+    A -->|Exports| H[Offline Pack ZIP]
+    C -->|Video file| H
+    E -->|Comments| H
+    H -->|Contains| V[viewer.html + video + data + SRT]
+
+    A -->|Also exports| I[PDF / CSV / JSON / TXT / SRT / HTML]
 ```
 
 ## 🚀 Installation
 
-VideoTAG is a browser-based application that doesn't require installation. Simply download the project files and open the `index.html` file in your web browser.
+VideoLens is a browser-based application that doesn't require installation. Use the [live app](https://vidlens.net/) or run it locally:
 
 ```bash
-git clone https://github.com/yourusername/videotag.git
+git clone https://github.com/VideoTag/videotag.git
 cd videotag
 # Just open index.html in your browser
+# (or serve it: npx serve — needed for some platform embeds)
 ```
 
 ## 🔍 Usage
 
 ### Adding a Video
 
-1. Select a video platform from the source selector
-2. Enter the video URL in the input field
-3. Click "Load Video"
+1. Paste any video URL — the platform is auto-detected (including direct `.mp4` links)
+2. Click **Load Video**
 
-OR
-
-1. Select "Upload Video" from the source selector
-2. Drag and drop a video file or click to browse
-3. Click "Use Uploaded Video"
+OR upload a local file: click **Upload File** or **drag & drop** a video anywhere on the input card.
 
 ### Adding Comments & Reactions
 
-Once a video is loaded:
+1. Use the quick reaction buttons below the video (👍, ❤️, 😂, …) or press keys `1`–`0`
+2. Press `C` (or the ➕ button) for a text comment
+3. Everything is timestamped at the current video position
+4. Hover a comment to **edit** ✏️ or delete it; use the search box to filter
 
-1. Use the quick reaction buttons below the video (👍, ❤️, 😂, etc.)
-2. Add text to your reaction when prompted
-3. Comments and reactions are automatically timestamped at the current video position
+### Going Offline
 
-### Using the Timeline
+1. `Export → Offline Pack (ZIP)`
+2. For platform videos, optionally attach a video copy you have the rights to
+3. Unzip anywhere and open `viewer.html` — no internet needed
 
-- The timeline shows the progress of the video
-- Colored markers indicate comments (green) and reactions (yellow)
-- Click on any marker to jump to that point in the video
+## ⌨️ Keyboard Shortcuts
 
-## 📊 Timeline & Analytics
-
-VideoTAG provides real-time analytics for your comments and reactions:
-
-```mermaid
-gantt
-    title Video Timeline Example
-    dateFormat s
-    axisFormat %M:%S
-    
-    Introduction    : milestone, m1, 0, 0
-    First Reaction  : milestone, m2, 30, 0
-    Main Point      : milestone, m3, 120, 0
-    Question        : milestone, m4, 180, 0
-    Conclusion      : milestone, m5, 240, 0
-```
-
-The statistics panel shows:
-- Total number of comments
-- Total number of reactions
-- Average activity time
-- Breakdown of reaction types
-
-
-```mermaid
-pie title "Reaction Distribution (Example)"
-    "👍" : 45
-    "❤️" : 30
-    "😂" : 15
-    "😮" : 5
-    "Other" : 5
-```
+| Key | Action |
+|-----|--------|
+| `C` | Add comment at current time |
+| `1`–`9`, `0` | Quick emoji reaction |
+| `Space` | Play / pause (local & direct videos) |
+| `←` / `→` | Seek ±5 s (local & direct videos) |
+| `Ctrl`+`Enter` | Submit open modal |
+| `Esc` | Close modal / dropdown |
 
 ## 💾 Export Options
 
 | Format | Features                                                  | Best For                          |
 |--------|-----------------------------------------------------------|-----------------------------------|
-| CSV    | Plain data format, easily imported into spreadsheets      | Data analysis and processing      |
-| Text   | Simple text file with timestamps and comments             | Simple review and sharing         |
-| PDF    | Formatted document with video information and comments    | Professional documentation        |
-| HTML   | Interactive webpage with embedded video and comments      | Online sharing and presentation   |
+| **Offline Pack (ZIP)** | Video + viewer + all data formats in one folder | Offline review & archiving |
+| HTML   | Single interactive webpage (embeds local video as base64)  | Online sharing and presentation   |
+| PDF    | Formatted document with video information and comments     | Professional documentation        |
+| CSV    | Plain data format, easily imported into spreadsheets       | Data analysis and processing      |
+| JSON   | Complete structured data incl. transcript & metadata       | Programmatic use / backups        |
+| Text   | Simple text file with timestamps and comments              | Simple review and sharing         |
+| SRT    | Comments as subtitles                                      | Overlay notes on the video in VLC |
 
 ## 🔧 Technical Details
 
-- **Languages:** HTML, CSS, JavaScript
-- **Dependencies:** 
-  - YouTube iFrame API
-  - jsPDF (for PDF generation)
-  - JSZip (for combining HTML & video)
-- **Storage:** Comments are stored in the browser's localStorage
-- **Video Formats:** MP4, WebM, OGG (for uploaded videos)
+- **Languages:** HTML, CSS, JavaScript — no framework, no build step
+- **Dependencies:**
+  - JSZip (Offline Pack generation)
+  - jsPDF (loaded on demand, only when exporting PDF)
+  - YouTube iFrame / Vimeo Player APIs (progressive enhancement)
+  - noembed.com oEmbed proxy (optional metadata; app works without it)
+- **Storage:** localStorage — comments persist per video, including local files (stable content key)
+- **Privacy:** no backend, no accounts, no tracking; your data never leaves the browser except the exports you download
+- **Accessibility:** keyboard navigable, focus-visible outlines, `prefers-reduced-motion` support
 
 ## 🤝 Contributing
 
