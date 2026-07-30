@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>How VideoLens Works — Annotate Any Video & Review It Offline</title>
+  <meta name="description" content="Step-by-step guide: load any video (YouTube, TikTok, MP4, local file), add timestamped comments, transcribe, and export an Offline Pack ZIP with the video, your notes and SRT subtitles.">
+  <link rel="canonical" href="https://vidlens.net/guide.html">
+  <meta name="theme-color" content="#05050a">
+  <meta property="og:title" content="How VideoLens Works">
+  <meta property="og:description" content="Load a video, add timestamped comments, export everything as an offline ZIP pack.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://vidlens.net/guide.html">
+  <meta property="og:site_name" content="VideoLens">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%AC%3C/text%3E%3C/svg%3E">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    "name": "How to annotate a video and review it offline with VideoLens",
+    "totalTime": "PT5M",
+    "step": [
+      { "@type": "HowToStep", "position": 1, "name": "Load a video", "text": "Paste any video URL (YouTube, TikTok, Vimeo, direct MP4) or upload a local file up to 2 GB. The platform is detected automatically.", "url": "https://vidlens.net/guide.html#step-load" },
+      { "@type": "HowToStep", "position": 2, "name": "Add timestamped comments and reactions", "text": "Press C for a comment or keys 1-0 for emoji reactions. Every note is anchored to the current second of the video.", "url": "https://vidlens.net/guide.html#step-annotate" },
+      { "@type": "HowToStep", "position": 3, "name": "Transcribe (optional)", "text": "Use live speech-to-text for local videos or import an existing transcript, then click any line to jump or turn it into a comment.", "url": "https://vidlens.net/guide.html#step-transcribe" },
+      { "@type": "HowToStep", "position": 4, "name": "Export the Offline Pack", "text": "Export > Offline Pack (ZIP) bundles the video, an offline viewer, your comments in five formats and the transcript into one folder.", "url": "https://vidlens.net/guide.html#step-export" },
+      { "@type": "HowToStep", "position": 5, "name": "Review offline", "text": "Unzip anywhere and open viewer.html - no internet needed. Or open the video in VLC with comments.srt to see your notes as subtitles.", "url": "https://vidlens.net/guide.html#step-review" }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <div class="bg-effects">
+    <div class="bg-gradient"></div>
+    <div class="bg-grid"></div>
+  </div>
+
+  <div class="app">
+    <header class="page-header">
+      <a class="page-logo" href="./">🎬 Video<span>Lens</span></a>
+      <nav class="page-nav" aria-label="Main navigation">
+        <a href="about.html">About</a>
+        <a href="guide.html" aria-current="page">How it works</a>
+        <a href="faq.html">FAQ</a>
+        <a href="./" class="btn btn--primary btn--sm">Open the app</a>
+      </nav>
+    </header>
+
+    <main class="page">
+      <h1>How VideoLens works</h1>
+      <p class="page-lead">
+        From "here's a video link" to "here's a folder I can review on a plane" in five steps.
+        No account, no installation — it all happens in your browser.
+      </p>
+
+      <h2 id="step-load">1. Load a video</h2>
+      <p>
+        Paste any video URL into the input — <strong>YouTube, YouTube Shorts, TikTok, Vimeo,
+        Dailymotion, Twitch, Facebook, Instagram, Odysee, VK</strong> or a direct link ending in
+        <code>.mp4</code>, <code>.webm</code>, <code>.mov</code>… The platform is detected automatically.
+        Or click <strong>Upload File</strong> (or just drag &amp; drop) for a local video up to 2&nbsp;GB.
+      </p>
+
+      <h2 id="step-annotate">2. Add timestamped comments &amp; reactions</h2>
+      <ul>
+        <li>Press <code>C</code> or click ➕ to write a comment at the current second.</li>
+        <li>Press <code>1</code>–<code>0</code> or click an emoji (👍 ❤️ 😂 😮 …) for a quick reaction.</li>
+        <li>Click any timestamp to jump straight back to that moment.</li>
+        <li>Hover a comment to <strong>edit</strong> or delete it; use the search box to filter long lists.</li>
+        <li>The timeline under the player shows a marker for every note — click to seek.</li>
+      </ul>
+
+      <h2 id="step-transcribe">3. Transcribe (optional)</h2>
+      <p>
+        For local videos, the <strong>Transcribe</strong> button uses your browser's live speech-to-text
+        (Chrome/Edge). For platform videos, copy the platform's transcript and <strong>Import</strong> it.
+        Every line becomes clickable — jump to the moment or convert lines into comments.
+      </p>
+
+      <h2 id="step-export">4. Export the Offline Pack</h2>
+      <p>
+        <strong>Export → Offline Pack (ZIP)</strong> creates one folder with everything:
+        <code>viewer.html</code> (interactive offline viewer), the video when available,
+        <code>data.json</code>, <code>comments.csv</code>, <code>comments.txt</code>,
+        <code>comments.srt</code> and <code>transcript.srt</code>.
+        Use the <em>Include reactions</em> toggle if you want text comments only.
+      </p>
+
+      <h2>Getting the video into the pack</h2>
+      <p>How the actual video file ends up inside the ZIP depends on the source:</p>
+      <ul>
+        <li><strong>Local files</strong> — bundled automatically. Done.</li>
+        <li><strong>Direct .mp4/.webm links</strong> — downloaded straight into the ZIP when the host allows it.</li>
+        <li><strong>Streaming platforms (YouTube, TikTok…)</strong> — web pages cannot download their protected
+          streams, so VideoLens guides you instead: a dialog offers an <strong>"Open video downloader"</strong>
+          button (copies the URL, opens the open-source downloader cobalt.tools in a new tab) or you can use the
+          platform's official download/offline feature. Then <strong>attach the file</strong> and it ships inside the ZIP.</li>
+      </ul>
+      <div class="page-callout">
+        <p>
+          <strong>Respect creators and platform terms.</strong> Only save videos you have the right to download:
+          your own uploads, Creative-Commons content, or where the platform explicitly allows offline copies.
+        </p>
+      </div>
+
+      <h2 id="step-review">5. Review offline — anywhere</h2>
+      <ul>
+        <li>Unzip the pack and open <code>viewer.html</code> — video and comments side by side,
+          synced highlighting, search and filters. <strong>Zero internet required.</strong></li>
+        <li>No video in the pack? Drop a <code>video.mp4</code> next to <code>viewer.html</code> later —
+          it's picked up automatically.</li>
+        <li>Prefer a media player? Open the video in <strong>VLC</strong> and load
+          <code>comments.srt</code> as a subtitle track: your notes appear on top of the video.</li>
+      </ul>
+
+      <p>
+        More questions? See the <a href="faq.html">FAQ</a> or
+        <a href="./">open the app</a> and try it — it's free.
+      </p>
+    </main>
+
+    <footer class="footer">
+      <p class="footer__text">
+        <span class="footer__logo">Video<span>Lens</span></span>
+        — Made with ❤️ for video enthusiasts
+      </p>
+      <nav class="footer__nav" aria-label="Site pages">
+        <a href="./">App</a>
+        <a href="about.html">About</a>
+        <a href="guide.html">How it works</a>
+        <a href="faq.html">FAQ</a>
+        <a href="https://github.com/VideoTag/videotag" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </footer>
+  </div>
+</body>
+</html>

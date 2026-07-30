@@ -1,5 +1,5 @@
 /* ----------------------------------------
-   ReactVid - Video Reactions & Comments
+   VideoLens - Video Reactions & Comments
    Version 5.0.0
    ---------------------------------------- */
 
@@ -2334,3 +2334,145 @@ body {
 .pack-video-step strong {
   font-size: var(--text-sm);
 }
+
+/* ----------------------------------------
+   32. Static Pages (About / Guide / FAQ)
+   ---------------------------------------- */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-4) 0 var(--space-6);
+}
+
+.page-logo {
+  font-size: var(--text-xl);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.page-logo span {
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.page-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.page-nav a {
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  font-size: var(--text-sm);
+  transition: var(--transition-fast);
+}
+
+.page-nav a:hover { color: var(--color-text); }
+
+.page {
+  max-width: 780px;
+  margin: 0 auto;
+  padding-bottom: var(--space-12);
+}
+
+.page h1 {
+  font-size: clamp(1.75rem, 4vw, var(--text-3xl));
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: var(--space-4);
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.page h2 {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  margin: var(--space-8) 0 var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.page h2::before {
+  content: '';
+  width: 4px;
+  height: 22px;
+  background: var(--color-primary);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.page p, .page li {
+  color: var(--color-text-secondary);
+  line-height: 1.7;
+  margin-bottom: var(--space-3);
+}
+
+.page ul, .page ol { padding-left: var(--space-6); margin-bottom: var(--space-4); }
+.page li { margin-bottom: var(--space-2); }
+.page strong { color: var(--color-text); }
+.page a { color: var(--color-primary-light); }
+.page code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--color-surface-elevated);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.page-lead {
+  font-size: var(--text-lg);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-6);
+}
+
+.page-callout {
+  padding: var(--space-4) var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-left: 3px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  margin: var(--space-4) 0;
+}
+
+.page-callout p:last-child { margin-bottom: 0; }
+
+.faq-item {
+  padding: var(--space-4) var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-3);
+}
+
+.faq-item h2 { margin: 0 0 var(--space-2); font-size: var(--text-lg); }
+.faq-item h2::before { display: none; }
+.faq-item p:last-child { margin-bottom: 0; }
+
+.footer__nav {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-5);
+  margin-top: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.footer__nav a {
+  color: var(--color-text-muted);
+  text-decoration: none;
+  font-size: var(--text-sm);
+  transition: var(--transition-fast);
+}
+
+.footer__nav a:hover { color: var(--color-primary-light); }

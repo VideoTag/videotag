@@ -3,14 +3,39 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="ReactVid - Add timestamped reactions and comments to videos from YouTube, TikTok, Vimeo, direct MP4 links and local files. Export everything as an offline ZIP pack.">
+  <meta name="description" content="VideoLens - Add timestamped reactions and comments to videos from YouTube, TikTok, Vimeo, direct MP4 links and local files. Export everything as an offline ZIP pack.">
   <meta name="theme-color" content="#05050a">
-  <meta property="og:title" content="ReactVid - Video Reactions & Comments">
+  <meta property="og:title" content="VideoLens - Video Reactions & Comments">
   <meta property="og:description" content="Add timestamped reactions and comments to any video. Export as an offline ZIP pack with the video, comments and transcript.">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://videotag.github.io/videotag/">
+  <meta property="og:url" content="https://vidlens.net/">
+  <meta property="og:site_name" content="VideoLens">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="VideoLens - Video Reactions & Comments">
+  <meta name="twitter:description" content="Add timestamped reactions and comments to any video. Export as an offline ZIP pack with the video, comments and transcript.">
+  <meta name="keywords" content="video comments, timestamped comments, video reactions, video annotation, video feedback tool, watch video offline, video notes, youtube comments export, offline video viewer">
+  <link rel="canonical" href="https://vidlens.net/">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%AC%3C/text%3E%3C/svg%3E">
-  <title>ReactVid - Video Reactions & Comments</title>
+  <title>VideoLens - Video Reactions & Comments</title>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "VideoLens",
+    "url": "https://vidlens.net/",
+    "applicationCategory": "MultimediaApplication",
+    "operatingSystem": "Any (web browser)",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "description": "Add timestamped reactions and comments to videos from YouTube, TikTok, Vimeo, direct MP4 links and local files. Export everything as an offline ZIP pack with the video, comments and an offline viewer.",
+    "featureList": [
+      "Timestamped comments and emoji reactions",
+      "Offline Pack ZIP export with video and comments",
+      "Comments as SRT subtitles",
+      "Speech-to-text transcription",
+      "PDF, CSV, JSON, TXT, SRT and HTML export"
+    ]
+  }
+  </script>
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -45,7 +70,7 @@
           </svg>
         </span>
         <span class="hero__title-text">
-          React<span class="hero__title-accent">Vid</span>
+          Video<span class="hero__title-accent">Lens</span>
         </span>
       </h1>
       
@@ -421,9 +446,15 @@
     <!-- Footer -->
     <footer class="footer">
       <p class="footer__text">
-        <span class="footer__logo">React<span>Vid</span></span>
+        <span class="footer__logo">Video<span>Lens</span></span>
         — Made with ❤️ for video enthusiasts
       </p>
+      <nav class="footer__nav" aria-label="Site pages">
+        <a href="about.html">About</a>
+        <a href="guide.html">How it works</a>
+        <a href="faq.html">FAQ</a>
+        <a href="https://github.com/VideoTag/videotag" target="_blank" rel="noopener">GitHub</a>
+      </nav>
       <p class="footer__shortcuts">
         <kbd>C</kbd> comment&nbsp;·&nbsp;<kbd>1</kbd>–<kbd>0</kbd> reactions&nbsp;·&nbsp;<kbd>Space</kbd> play/pause&nbsp;·&nbsp;<kbd>←</kbd><kbd>→</kbd> seek&nbsp;·&nbsp;<kbd>Ctrl</kbd>+<kbd>Enter</kbd> submit
       </p>

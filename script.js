@@ -1,5 +1,5 @@
 /**
- * ReactVid - Video Reactions & Comments Application
+ * VideoLens - Video Reactions & Comments Application
  * 
  * A premium application for adding timestamped reactions
  * and comments to videos from multiple platforms.
@@ -310,7 +310,7 @@ async function fetchVideoMetadata(url) {
     if (meta.title) {
       state.videoTitle = meta.title;
       if (elements.videoTitleDisplay) elements.videoTitleDisplay.textContent = meta.title;
-      document.title = `${meta.title} - ReactVid`;
+      document.title = `${meta.title} - VideoLens`;
     }
     if (meta.author_name) state.videoAuthor = meta.author_name;
     if (meta.thumbnail_url) state.videoThumbnail = meta.thumbnail_url;
@@ -1988,7 +1988,7 @@ function exportText() {
     showToast('No comments included — exporting metadata only', 'info');
   }
   
-  let text = `ReactVid Export\n`;
+  let text = `VideoLens Export\n`;
   text += `Video: ${state.videoTitle}\n`;
   text += `Platform: ${PROVIDER_NAMES[state.currentProvider]}\n`;
   text += `Date: ${new Date().toLocaleString()}\n`;
@@ -2021,7 +2021,7 @@ async function exportPDF() {
   // Title
   doc.setFontSize(24);
   doc.setTextColor(99, 102, 241);
-  doc.text('ReactVid Export', 20, 25);
+  doc.text('VideoLens Export', 20, 25);
   
   // Video info
   doc.setFontSize(12);
@@ -2182,13 +2182,14 @@ function generateHTMLContent() {
   const markers = getTimelineMarkersData();
   const videoId = state.currentVideoId;
   const { embedUrl, seekTemplate } = getSeekableEmbedInfo();
+  const watchUrl = getVideoWatchUrl();
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${sanitizeHTML(state.videoTitle)} - ReactVid Export</title>
+  <title>${sanitizeHTML(state.videoTitle)} - VideoLens Export</title>
   <style>
     :root { 
       --primary: #6366f1; 
@@ -2285,6 +2286,28 @@ function generateHTMLContent() {
       cursor: pointer;
     }
     .seek-controls button:hover { opacity: 0.9; }
+    .getvideo {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-top: 0.75rem;
+      padding: 0.75rem;
+      background: var(--surface-elevated);
+      border: 1px dashed rgba(255,255,255,0.15);
+      border-radius: 8px;
+    }
+    .getvideo button {
+      padding: 6px 14px;
+      background: transparent;
+      border: 1px solid var(--primary);
+      border-radius: 6px;
+      color: var(--primary-light);
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .getvideo button:hover { background: rgba(99,102,241,0.15); }
+    .getvideo small { color: var(--muted); font-size: 0.72rem; line-height: 1.4; flex: 1; min-width: 200px; }
     .timeline {
       flex: 1;
       position: relative;
@@ -2469,6 +2492,15 @@ function generateHTMLContent() {
         </div>
       </div>
     </div>
+
+    ${watchUrl ? `
+    <div class="getvideo">
+      <button id="getvideo-btn">⬇ Download video for offline</button>
+      <small>Copies the video URL and opens an external downloader (cobalt.tools) in a new tab.
+      Only save videos you have the right to download — your own uploads, Creative Commons,
+      or where the platform's terms allow it.</small>
+    </div>
+    ` : ''}
   </div>
 
   <div class="stats">
@@ -2496,7 +2528,7 @@ function generateHTMLContent() {
   </div>
 
   <div class="footer">
-    <p>Exported from <strong>ReactVid</strong></p>
+    <p>Exported from <strong>VideoLens</strong></p>
   </div>
 
   <script>
@@ -2561,6 +2593,20 @@ function generateHTMLContent() {
         seekTo(parseInt(this.dataset.time));
       });
     });
+
+    // Download-video helper (external open-source downloader)
+    var gvBtn = document.getElementById('getvideo-btn');
+    if (gvBtn) {
+      gvBtn.addEventListener('click', function() {
+        var u = ${JSON.stringify(watchUrl || '')};
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(u).catch(function() {});
+        }
+        window.open('https://cobalt.tools/', '_blank', 'noopener');
+        gvBtn.textContent = '✓ URL copied — paste it in the downloader tab';
+        setTimeout(function() { gvBtn.textContent = '⬇ Download video for offline'; }, 4000);
+      });
+    }
   </script>
 </body>
 </html>`;
@@ -2618,7 +2664,7 @@ function generateHTMLWithEmbeddedVideo(videoBase64, videoType) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${sanitizeHTML(state.videoTitle)} - ReactVid Export</title>
+  <title>${sanitizeHTML(state.videoTitle)} - VideoLens Export</title>
   <style>
     :root { 
       --primary: #6366f1; 
@@ -2837,7 +2883,7 @@ function generateHTMLWithEmbeddedVideo(videoBase64, videoType) {
   </div>
 
   <div class="footer">
-    <p>Exported from <strong>ReactVid</strong> — Video Reactions & Comments Tool</p>
+    <p>Exported from <strong>VideoLens</strong> — Video Reactions & Comments Tool</p>
   </div>
 
   <script>
@@ -3115,7 +3161,7 @@ async function exportZIP() {
       folder.file('comments.csv', csv);
 
       // Plain text
-      let textContent = `ReactVid Offline Pack\n${'='.repeat(50)}\n\n`;
+      let textContent = `VideoLens Offline Pack\n${'='.repeat(50)}\n\n`;
       textContent += `Video: ${state.videoTitle}\n`;
       if (state.videoAuthor) textContent += `Author: ${state.videoAuthor}\n`;
       textContent += `Platform: ${PROVIDER_NAMES[state.currentProvider]}\n`;
@@ -3144,7 +3190,7 @@ async function exportZIP() {
 
     // README
     const watchUrl = getVideoWatchUrl();
-    const readme = `# ReactVid Offline Pack
+    const readme = `# VideoLens Offline Pack
 
 ## ${state.videoTitle}
 ${state.videoAuthor ? `**Author:** ${state.videoAuthor}\n` : ''}
@@ -3169,7 +3215,7 @@ ${data.length > 0 ? '- `comments.csv` — spreadsheet format (Excel / Google She
 - **Duration:** ${formatTime(state.videoDuration)}
 
 ---
-*Exported with ReactVid — https://videotag.github.io/videotag/*
+*Exported with VideoLens — https://vidlens.net/*
 `;
     folder.file('README.md', readme);
 
@@ -3249,7 +3295,7 @@ function generateOfflineViewerHTML({ videoFileName, videoIncluded, thumbnailFile
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${sanitizeHTML(state.videoTitle)} — ReactVid Offline Pack</title>
+<title>${sanitizeHTML(state.videoTitle)} — VideoLens Offline Pack</title>
 <style>
   :root {
     --primary: #6366f1; --primary-light: #818cf8; --secondary: #ec4899;
@@ -3393,7 +3439,7 @@ function generateOfflineViewerHTML({ videoFileName, videoIncluded, thumbnailFile
 </div>
 
 <footer>
-  <p>Offline Pack exported from <strong>ReactVid</strong> — <a href="https://videotag.github.io/videotag/" target="_blank" rel="noopener">videotag.github.io/videotag</a></p>
+  <p>Offline Pack exported from <strong>VideoLens</strong> — <a href="https://vidlens.net/" target="_blank" rel="noopener">vidlens.net</a></p>
   <p>Space: play/pause &nbsp;·&nbsp; ← → : seek 5s &nbsp;·&nbsp; Click a timestamp to jump</p>
 </footer>
 
@@ -3430,7 +3476,7 @@ function hint(msg) {
 
 // ---- Header ----
 document.getElementById('title').textContent = PACK.title;
-document.title = PACK.title + ' — ReactVid Offline Pack';
+document.title = PACK.title + ' — VideoLens Offline Pack';
 var metaBits = ['<span>📺 ' + esc(PACK.providerName) + '</span>'];
 if (PACK.author) metaBits.push('<span>👤 ' + esc(PACK.author) + '</span>');
 metaBits.push('<span>📅 ' + new Date(PACK.exportDate).toLocaleDateString() + '</span>');
@@ -3464,8 +3510,23 @@ function showFallback() {
     '<h3>Video file not found</h3>' +
     '<p>Drop a copy of the video here (or use “Load video file”) and it plays fully offline, synced with your comments.<br>' +
     'See <strong>GET-THE-VIDEO.md</strong> in this folder for details.</p>' +
-    (PACK.watchUrl ? '<a class="btn" href="' + PACK.watchUrl + '" target="_blank" rel="noopener">▶ Watch online instead</a>' : '') +
+    '<div style="display:flex;gap:0.5rem;justify-content:center;flex-wrap:wrap;">' +
+    (PACK.watchUrl ? '<a class="btn" href="' + PACK.watchUrl + '" target="_blank" rel="noopener">▶ Watch online</a>' : '') +
+    (PACK.watchUrl ? '<button class="btn btn--ghost" id="dlHelpBtn">⬇ Open video downloader</button>' : '') +
+    '</div>' +
+    (PACK.watchUrl ? '<p style="margin-top:0.75rem;font-size:0.72rem;color:var(--muted);">The downloader button copies the video URL and opens cobalt.tools in a new tab. Only save videos you have the right to download.</p>' : '') +
     '</div>';
+
+  var dlBtn = document.getElementById('dlHelpBtn');
+  if (dlBtn) {
+    dlBtn.addEventListener('click', function() {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(PACK.watchUrl).catch(function() {});
+      }
+      window.open('https://cobalt.tools/', '_blank', 'noopener');
+      hint('Video URL copied — paste it in the downloader, then drop the file here');
+    });
+  }
 
   var dz = document.getElementById('dropzone');
   dz.addEventListener('dragover', function(e) { e.preventDefault(); dz.classList.add('dragover'); });
@@ -3777,7 +3838,7 @@ function initEventListeners() {
     state.originalVideoUrl = null;
     state.videoAuthor = null;
     state.videoThumbnail = null;
-    document.title = 'ReactVid - Video Reactions & Comments';
+    document.title = 'VideoLens - Video Reactions & Comments';
     if (elements.searchComments) elements.searchComments.value = '';
     renderRecentVideos();
     stopTranscription();

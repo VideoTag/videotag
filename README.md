@@ -1,8 +1,8 @@
-# 🎬 VideoTAG (ReactVid): Video Reactions & Comments System
+# 🎬 VideoLens: Video Reactions & Comments System
 
-VideoTAG is a web application that lets you add timestamped reactions and comments to videos from many platforms — and take **everything offline** as a self-contained ZIP pack (video + comments + interactive viewer).
+VideoLens (formerly ReactVid / VideoTAG) is a web application that lets you add timestamped reactions and comments to videos from many platforms — and take **everything offline** as a self-contained ZIP pack (video + comments + interactive viewer).
 
-**Live app:** https://videotag.github.io/videotag/
+**Live app:** https://vidlens.net/ — see also [About](https://vidlens.net/about.html) · [How it works](https://vidlens.net/guide.html) · [FAQ](https://vidlens.net/faq.html)
 
 ## 📋 Table of Contents
 
@@ -95,7 +95,7 @@ flowchart TD
 
 ## 🚀 Installation
 
-VideoTAG is a browser-based application that doesn't require installation. Use the [live app](https://videotag.github.io/videotag/) or run it locally:
+VideoLens is a browser-based application that doesn't require installation. Use the [live app](https://vidlens.net/) or run it locally:
 
 ```bash
 git clone https://github.com/VideoTag/videotag.git
