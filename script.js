@@ -3598,28 +3598,20 @@ function getDownloadRoutes(watchUrl, providerName) {
   const url = watchUrl || '';
   return [
     {
+      icon: '⭐',
+      title: 'Vidlens Downloader (recommended)',
+      body: 'The desktop companion: paste the link, pick a quality, get the video and its subtitles. Free, about 1.8 MB, no account, works on 1000+ sites.',
+      command: null,
+      link: 'https://github.com/VideoTag/vidlens-downloads/releases/latest',
+      linkLabel: 'Get the app',
+    },
+    {
       icon: '✅',
-      title: `${providerName}'s own download`,
-      body: `The safest route: use the platform's official download / offline feature (e.g. YouTube Premium offline, or YouTube Studio for videos you uploaded yourself).`,
+      title: `${providerName} own download`,
+      body: `Also fine: the platform's official download or offline feature, when it offers one.`,
       command: null,
       link: url,
       linkLabel: 'Open the video',
-    },
-    {
-      icon: '⌨️',
-      title: 'yt-dlp (local tool, nothing leaves your machine)',
-      body: 'Free and open source. Install it once, then run this command in a terminal — no website involved.',
-      command: url ? `yt-dlp -f "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]" -o "video.mp4" "${url}"` : null,
-      link: 'https://github.com/yt-dlp/yt-dlp#installation',
-      linkLabel: 'Install yt-dlp',
-    },
-    {
-      icon: '🌐',
-      title: 'A downloader website',
-      body: 'If you prefer not to install anything, an open-source web downloader such as cobalt can fetch the file for you. Third-party site — use at your own discretion.',
-      command: null,
-      link: 'https://cobalt.tools/',
-      linkLabel: 'Open cobalt.tools',
     },
   ];
 }
@@ -4017,28 +4009,29 @@ document.getElementById('dlBtn').addEventListener('click', function () {
   }
 });
 
-// Embedded downloader, same as on vidlens.net. Browsers block third-party
-// frames from file:// pages, so there we fall back to the routes panel.
+// Points at the desktop companion: a web page cannot fetch protected streams.
 function openDownloader() {
   var back = document.createElement('div');
   back.className = 'dlmodal';
   back.innerHTML =
     '<div class="dlmodal__box">' +
       '<div class="dlmodal__head">' +
-        '<strong>⬇ Download the video</strong>' +
+        '<strong>⬇ Get this video offline</strong>' +
         '<button class="btn btn--ghost btn--sm" id="dlmClose">Close</button>' +
       '</div>' +
-      '<p class="dlmodal__hint">Link copied — paste it below (Ctrl+V), download, then use <em>Load video file</em> to play it here with your notes.</p>' +
-      '<div class="cmd"><code id="dlmUrl"></code><button class="btn btn--ghost btn--sm" id="dlmCopy">Copy</button></div>' +
-      '<iframe class="dlmodal__frame" src="https://cobalt.tools/" allow="clipboard-read; clipboard-write; downloads" referrerpolicy="no-referrer" title="Video downloader"></iframe>' +
-      '<p class="dlmodal__credit">Embedded: <a href="https://cobalt.tools/" target="_blank" rel="noopener">cobalt.tools</a>, a free open-source third-party service. Only download videos you have the right to save.</p>' +
-      '<div style="margin-top:0.6rem;"><button class="btn" id="dlmLoad">📂 I downloaded it — load the file</button></div>' +
+      '<p class="dlmodal__hint">Web pages cannot fetch protected streams. <strong>Vidlens Downloader</strong> can — a free desktop app (~1.8 MB) that saves the video and its subtitles. Then use <em>Load video file</em> here to play it with your notes.</p>' +
+      '<div class="cmd"><code id="dlmUrl"></code><button class="btn btn--ghost btn--sm" id="dlmCopy">Copy link</button></div>' +
+      '<div style="margin-top:0.8rem;display:flex;gap:0.5rem;flex-wrap:wrap;">' +
+        '<a class="btn" href="https://github.com/VideoTag/vidlens-downloads/releases/latest" target="_blank" rel="noopener">⬇ Download the app</a>' +
+        '<button class="btn btn--ghost" id="dlmLoad">📂 I have the file — load it</button>' +
+      '</div>' +
+      '<p class="dlmodal__credit">Only save videos you have the right to keep. Built on the public-domain yt-dlp engine; no DRM is ever circumvented.</p>' +
     '</div>';
   document.body.appendChild(back);
   document.getElementById('dlmUrl').textContent = R.watchUrl;
 
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(R.watchUrl).then(function () { toast('Link copied — paste it in the downloader'); }, function () {});
+    navigator.clipboard.writeText(R.watchUrl).then(function () { toast('Link copied'); }, function () {});
   }
   document.getElementById('dlmCopy').addEventListener('click', function () {
     if (navigator.clipboard) navigator.clipboard.writeText(R.watchUrl).then(function () { toast('Link copied'); }, function () {});
@@ -4305,185 +4298,103 @@ async function fetchThumbnailForPack() {
   return null;
 }
 
-// Downloading a platform video from a static page needs an API that will
-// resolve the stream. Public ones are gone (the main cobalt instance
-// disabled YouTube; community instances are dead or JWT-gated), so the
-// reliable path is the user's own instance — then it is genuinely one click.
-const DOWNLOADER_URL = 'https://cobalt.tools/';
+// A web page cannot fetch a protected stream: the URLs are cipher-signed and
+// cross-origin blocked. The desktop companion has no such limits, so that is
+// the single route we offer.
 const DESKTOP_APP_URL = 'https://github.com/VideoTag/vidlens-downloads/releases/latest';
 
-// The desktop companion is not bound by browser limits, so it is the honest
-// first answer to "just download it".
-function desktopAppCard() {
+function detectPlatformTarget() {
+  const ua = navigator.userAgent || '';
   const platform = navigator.userAgentData?.platform || navigator.platform || '';
-  const isMac = /mac/i.test(platform);
-  const isLinux = /linux/i.test(platform) && !/android/i.test(navigator.userAgent);
-  const file = isMac ? '.dmg for macOS' : isLinux ? '.AppImage / .deb for Linux' : '.exe for Windows';
 
-  return `
-    <div class="dl-card dl-card--app">
-      <h4>💻 Vidlens Downloader <span class="sub-badge">recommended</span></h4>
-      <p>A small desktop app (about 10 MB) that does this properly: paste a link, pick a quality,
-      get the video <strong>and its subtitles</strong>. A browser page cannot fetch protected
-      streams — a desktop app can. Free, no account, nothing uploaded, works on 1000+ sites.</p>
-      <div class="dl-app-row">
-        <a class="btn btn--primary btn--sm" href="${DESKTOP_APP_URL}" target="_blank" rel="noopener">⬇ Download for this computer</a>
-        <span class="dl-app-note">${sanitizeHTML(file)} · then attach the file here</span>
-      </div>
-      <p class="dl-note" style="margin-top:0.75rem;">
-        The builds are not code-signed yet, so Windows or macOS will warn on first launch
-        (<em>More info → Run anyway</em>, or right-click → <em>Open</em>). Every release ships
-        SHA-256 checksums you can verify.
-      </p>
-    </div>`;
-}
-const DOWNLOADER_API_KEY = 'vidlens_downloader_api';
-
-function getDownloaderApi() {
-  try {
-    return localStorage.getItem(DOWNLOADER_API_KEY) || '';
-  } catch {
-    return '';
+  if (/mac/i.test(platform) || /Macintosh/i.test(ua)) {
+    return { key: 'mac', label: 'macOS', file: '.dmg', note: 'Apple Silicon & Intel' };
   }
-}
-
-function setDownloaderApi(url) {
-  try {
-    url ? localStorage.setItem(DOWNLOADER_API_KEY, url) : localStorage.removeItem(DOWNLOADER_API_KEY);
-  } catch {}
-}
-
-// Ask the configured instance for a stream URL, then pull the bytes here.
-async function fetchViaOwnApi(videoUrl, quality, onProgress) {
-  const api = getDownloaderApi();
-  if (!api) throw new Error('No downloader API configured');
-
-  onProgress?.('Asking your instance to resolve the video...');
-  const response = await fetch(api.replace(/\/+$/, '') + '/', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-    body: JSON.stringify({ url: videoUrl, videoQuality: quality, filenameStyle: 'basic' }),
-  });
-
-  const data = await response.json().catch(() => ({}));
-
-  if (data.status === 'error') {
-    throw new Error(data.error?.code || 'the instance refused this link');
+  if (/linux/i.test(platform) && !/android/i.test(ua)) {
+    return { key: 'linux', label: 'Linux', file: '.AppImage / .deb', note: 'x86_64' };
   }
-  if (data.status === 'picker') {
-    throw new Error('this link returns multiple items — not supported yet');
-  }
-
-  const fileUrl = data.url;
-  if (!fileUrl) throw new Error('the instance returned no file URL');
-
-  onProgress?.('Downloading the video...');
-  const fileResponse = await fetch(fileUrl);
-  if (!fileResponse.ok) throw new Error(`download failed (HTTP ${fileResponse.status})`);
-
-  const total = Number(fileResponse.headers.get('content-length')) || 0;
-  const reader = fileResponse.body?.getReader();
-  const chunks = [];
-  let received = 0;
-
-  if (reader) {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-      received += value.length;
-      onProgress?.(total
-        ? `Downloading... ${Math.round((received / total) * 100)}% (${formatFileSize(received)})`
-        : `Downloading... ${formatFileSize(received)}`);
-    }
-  } else {
-    chunks.push(new Uint8Array(await fileResponse.arrayBuffer()));
-  }
-
-  const blob = new Blob(chunks, { type: 'video/mp4' });
-  const name = (data.filename || `${sanitizeFileName(state.videoTitle) || 'video'}.mp4`).replace(/[\\/:*?"<>|]/g, '_');
-  return new File([blob], name, { type: 'video/mp4' });
+  return { key: 'win', label: 'Windows', file: '.exe installer', note: 'Windows 10 & 11 · 1.8 MB' };
 }
 
 function showDownloaderModal(videoUrl, onFile) {
   $('#downloaderModal')?.remove();
+  const target = detectPlatformTarget();
 
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
   modal.id = 'downloaderModal';
   modal.innerHTML = `
-    <div class="modal modal--wide" role="dialog" aria-modal="true" aria-labelledby="dlModalTitle">
-      <div class="modal__header">
-        <div class="modal__title-wrapper">
-          <span class="modal__emoji">⬇</span>
-          <h3 class="modal__title" id="dlModalTitle">Download the video</h3>
-        </div>
-        <button class="modal__close" id="dlClose" aria-label="Close">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
+    <div class="modal modal--app" role="dialog" aria-modal="true" aria-labelledby="dlModalTitle">
+      <button class="modal__close app-hero__close" id="dlClose" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+
+      <div class="app-hero">
+        <div class="app-hero__glow"></div>
+        <img class="app-hero__icon" src="icon-192.png" alt="" width="72" height="72">
+        <h3 class="app-hero__title" id="dlModalTitle">Vidlens Downloader</h3>
+        <p class="app-hero__sub">The desktop companion that actually gets the file.<br>
+        A web page can't reach protected streams — this can.</p>
+
+        <a class="app-cta" href="${DESKTOP_APP_URL}" target="_blank" rel="noopener" id="dlGetApp">
+          <span class="app-cta__icon">⬇</span>
+          <span class="app-cta__text">
+            <strong>Download for ${target.label}</strong>
+            <small>${target.file} · free · ${target.note}</small>
+          </span>
+        </a>
+        <p class="app-hero__other">
+          Also available for
+          <a href="${DESKTOP_APP_URL}" target="_blank" rel="noopener">Windows</a>,
+          <a href="${DESKTOP_APP_URL}" target="_blank" rel="noopener">macOS</a> and
+          <a href="${DESKTOP_APP_URL}" target="_blank" rel="noopener">Linux</a>
+        </p>
       </div>
-      <div class="modal__body modal__body--flush">
-        <div class="dl-url">
-          <input type="text" id="dlUrlField" readonly value="${sanitizeHTML(videoUrl)}">
-          <button class="btn btn--ghost btn--sm" id="dlCopy">Copy link</button>
+
+      <div class="modal__body">
+        <div class="app-feats">
+          <span class="app-feat">🌍 1000+ sites</span>
+          <span class="app-feat">💬 Subtitles included</span>
+          <span class="app-feat">🔒 Nothing uploaded</span>
+          <span class="app-feat">🪶 1.8 MB</span>
+          <span class="app-feat">🆓 No account</span>
         </div>
 
-        ${desktopAppCard()}
-
-        <!-- 1. One click, when an instance is connected -->
-        <details class="dl-card dl-card--primary" id="dlApiCard" ${getDownloaderApi() ? 'open' : ''}>
-          <summary>⚡ Advanced: connect your own downloader API</summary>
-          <p class="dl-api-state">Status: <strong id="dlApiState">${getDownloaderApi() ? 'connected' : 'not configured'}</strong></p>
-          <p>Vidlens has no server, so it borrows one: connect a <strong>downloader API</strong> (your own
-          <a href="https://github.com/imputnet/cobalt/blob/main/docs/run-an-instance.md" target="_blank" rel="noopener">cobalt instance</a>
-          — free to self-host) and the video is fetched, saved and attached here in a single click.
-          <a href="self-host.html" target="_blank">Setup guide →</a></p>
-          <div class="dl-api-row">
-            <input type="url" id="dlApiField" placeholder="https://your-instance.example.com" value="${sanitizeHTML(getDownloaderApi())}">
-            <select id="dlQuality" title="Preferred quality">
-              <option value="1080">1080p</option>
-              <option value="720" selected>720p</option>
-              <option value="480">480p</option>
-              <option value="max">Best</option>
-            </select>
-            <button class="btn btn--primary btn--sm" id="dlFetchNow">Download &amp; attach</button>
-          </div>
-          <div class="sub-progress" id="dlApiProgress" hidden>
-            <p class="sub-stage" id="dlApiStage"></p>
-            <div class="sub-bar"><div class="sub-bar__fill sub-bar__fill--indeterminate" style="width:100%"></div></div>
-          </div>
-        </details>
-
-        <!-- 2. Manual route, embedded when the provider allows it -->
-        <details class="dl-card" id="dlManual" ${getDownloaderApi() ? '' : 'open'}>
-          <summary>🌐 Or use a public downloader (manual)</summary>
-          <div class="dl-steps">
-            <span class="dl-step"><b>1</b> Link copied — paste it below (<kbd>Ctrl</kbd>+<kbd>V</kbd>)</span>
-            <span class="dl-step"><b>2</b> Download</span>
-            <span class="dl-step"><b>3</b> Attach it here 👇</span>
-          </div>
-          <p class="dl-note">Heads-up: the embedded instance below <strong>no longer supports YouTube</strong>
-          (it still handles TikTok, Instagram, Twitter/X, Vimeo and others). For YouTube use the one-click
-          option above, or one of these in a new tab:
-          <a href="https://cobalt.canine.tools/" target="_blank" rel="noopener">cobalt.canine.tools</a> ·
-          <a href="https://github.com/yt-dlp/yt-dlp#installation" target="_blank" rel="noopener">yt-dlp</a>.</p>
-          <div class="dl-frame-wrap">
-            <iframe id="dlFrame" class="dl-frame" src="${DOWNLOADER_URL}"
-              allow="clipboard-read; clipboard-write; downloads"
-              referrerpolicy="no-referrer"
-              title="Video downloader"></iframe>
-            <div class="dl-frame-fallback" id="dlFallback" hidden>
-              <p>The embedded downloader could not load here.</p>
-              <a class="btn btn--primary btn--sm" href="${DOWNLOADER_URL}" target="_blank" rel="noopener">Open it in a new tab</a>
+        <ol class="app-steps">
+          <li>
+            <span class="app-steps__num">1</span>
+            <div>
+              <strong>Install the app</strong>
+              <p>One small installer. It fetches its download engine on first run and verifies the checksum before running it.</p>
             </div>
-          </div>
-          <p class="dl-credit">
-            Embedded: <a href="${DOWNLOADER_URL}" target="_blank" rel="noopener">cobalt.tools</a> —
-            a free, open-source third-party service. Vidlens never sees your video.
-            Only download videos you have the right to save.
-          </p>
-        </details>
+          </li>
+          <li>
+            <span class="app-steps__num">2</span>
+            <div>
+              <strong>Paste this link into it</strong>
+              <p>Already copied to your clipboard — just press <kbd>Ctrl</kbd>+<kbd>V</kbd> in the app.</p>
+              <div class="app-url">
+                <input type="text" id="dlUrlField" readonly value="${sanitizeHTML(videoUrl)}">
+                <button class="btn btn--ghost btn--sm" id="dlCopy">Copy again</button>
+              </div>
+            </div>
+          </li>
+          <li>
+            <span class="app-steps__num">3</span>
+            <div>
+              <strong>Bring the file back here</strong>
+              <p>Attach it and Vidlens plays it offline, bundles it into your Offline Pack, and can transcribe it.</p>
+            </div>
+          </li>
+        </ol>
+
+        <p class="app-fine">
+          Not code-signed yet, so Windows or macOS warns on first launch
+          (<em>More info → Run anyway</em>, or right-click → <em>Open</em>); every release ships
+          SHA-256 checksums. Save only what you have the right to keep — the app never breaks DRM.
+        </p>
       </div>
+
       <div class="modal__footer">
         <button class="btn btn--ghost" id="dlDone">Close</button>
         <button class="btn btn--primary" id="dlAttach">
@@ -4502,15 +4413,14 @@ function showDownloaderModal(videoUrl, onFile) {
     document.body.style.overflow = '';
   };
 
-  // Pre-copy the link so pasting is the only thing left to do
+  // The link is ready to paste the moment the app opens
   navigator.clipboard?.writeText(videoUrl).then(
-    () => showToast('Link copied — paste it in the downloader', 'success'),
-    () => showToast('Copy the link above, then paste it in the downloader', 'info')
+    () => showToast('Link copied — paste it in the app', 'success'),
+    () => {}
   );
 
   modal.querySelector('#dlCopy').addEventListener('click', async () => {
-    const field = modal.querySelector('#dlUrlField');
-    field.select();
+    modal.querySelector('#dlUrlField').select();
     try {
       await navigator.clipboard.writeText(videoUrl);
       showToast('Link copied', 'success');
@@ -4518,53 +4428,6 @@ function showDownloaderModal(videoUrl, onFile) {
       showToast('Press Ctrl+C to copy', 'info');
     }
   });
-
-  // One-click path via the user's own instance
-  modal.querySelector('#dlFetchNow').addEventListener('click', async () => {
-    const apiField = modal.querySelector('#dlApiField');
-    const api = apiField.value.trim();
-    if (!api) {
-      apiField.focus();
-      showToast('Add your downloader API URL first — see the setup guide', 'info');
-      return;
-    }
-
-    setDownloaderApi(api);
-    const btn = modal.querySelector('#dlFetchNow');
-    const progress = modal.querySelector('#dlApiProgress');
-    const stage = modal.querySelector('#dlApiStage');
-    btn.disabled = true;
-    progress.hidden = false;
-
-    try {
-      const file = await fetchViaOwnApi(
-        videoUrl,
-        modal.querySelector('#dlQuality').value,
-        (t) => { stage.textContent = t; }
-      );
-      downloadBlob(file, file.name);   // save a copy for the user
-      close();
-      showToast(`Downloaded "${file.name}" (${formatFileSize(file.size)}) and attached it`, 'success');
-      onFile?.(file);
-    } catch (error) {
-      console.error('One-click download failed:', error);
-      showToast(`Could not download: ${error.message}`, 'error');
-      btn.disabled = false;
-      progress.hidden = true;
-      modal.querySelector('#dlManual').open = true;
-    }
-  });
-
-  // If the third-party page refuses to render, fall back to a new tab
-  const frame = modal.querySelector('#dlFrame');
-  let loaded = false;
-  frame.addEventListener('load', () => { loaded = true; });
-  setTimeout(() => {
-    if (!loaded) {
-      frame.hidden = true;
-      modal.querySelector('#dlFallback').hidden = false;
-    }
-  }, 9000);
 
   modal.querySelector('#dlAttach').addEventListener('click', () => {
     modal.querySelector('#dlAttachInput').click();
@@ -4614,17 +4477,11 @@ function askForPackVideo() {
             <div class="pack-video-step">
               <span class="pack-video-step__num">1</span>
               <div>
-                <strong>Don't have the file yet? Pick a route:</strong>
-                <p><strong>✅ Official</strong> — the platform's own download / offline feature (best option).</p>
-                <p><strong>⌨️ yt-dlp</strong> — a local open-source tool, no website involved:</p>
-                <div class="pack-video-cmd">
-                  <code id="packYtdlp">${sanitizeHTML(`yt-dlp -f "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]" -o "video.mp4" "${state.originalVideoUrl || getVideoWatchUrl() || ''}"`)}</code>
-                  <button class="btn btn--ghost btn--sm" id="packCopyCmd">Copy</button>
-                </div>
-                <p style="margin-top:0.5rem;"><strong>🌐 Downloader site</strong> — if you'd rather not install anything:</p>
+                <strong>Don't have the file yet?</strong>
+                <p>Vidlens Downloader saves the video and its subtitles in a couple of clicks — free, about 1.8 MB, nothing uploaded.</p>
                 <button class="btn btn--secondary btn--sm" id="packVideoDownloader">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                  <span>Open cobalt.tools</span>
+                  <span>Get Vidlens Downloader</span>
                 </button>
               </div>
             </div>
@@ -4657,15 +4514,6 @@ function askForPackVideo() {
 
     modal.querySelector('#packVideoChoose').addEventListener('click', () => {
       modal.querySelector('#packVideoInput').click();
-    });
-    modal.querySelector('#packCopyCmd')?.addEventListener('click', async () => {
-      const cmd = modal.querySelector('#packYtdlp')?.textContent || '';
-      try {
-        await navigator.clipboard.writeText(cmd);
-        showToast('yt-dlp command copied — run it in a terminal', 'success');
-      } catch {
-        showToast('Select the command and copy it manually', 'info');
-      }
     });
     modal.querySelector('#packVideoDownloader')?.addEventListener('click', () => {
       const url = state.originalVideoUrl || getVideoWatchUrl() || '';
@@ -4871,11 +4719,11 @@ If you have the right to an offline copy (it's your own upload, it's
 Creative-Commons licensed, or the platform offers an official download /
 offline feature), here is how to get the file:
 
-- **Official routes:** the platform's download / offline feature
+- **Vidlens Downloader** — the free desktop companion (~1.8 MB):
+  https://github.com/VideoTag/vidlens-downloads/releases/latest
+  Paste the link, pick a quality, and it saves the video plus subtitles.
+- **Official routes:** the platform's own download / offline feature
   (e.g. YouTube Premium offline, YouTube Studio for your own videos).
-- **Open-source tools:** [cobalt.tools](https://cobalt.tools) (web, paste the
-  URL) or [yt-dlp](https://github.com/yt-dlp/yt-dlp) (command line) can save a
-  copy — use them only for content you have the right to download.
 
 Then save the file **in this folder** named:
 
@@ -5158,33 +5006,19 @@ function showFallback() {
     '</div>' +
     (PACK.watchUrl ?
       '<div id="dlRoutes" style="display:none;margin-top:0.9rem;text-align:left;font-size:0.78rem;color:var(--text-2);">' +
-      '<p style="margin-bottom:0.4rem;"><strong>✅ Official:</strong> the platform\\'s own download / offline feature.</p>' +
-      '<p style="margin-bottom:0.3rem;"><strong>⌨️ yt-dlp</strong> (local tool, no website):</p>' +
-      '<div style="display:flex;gap:0.4rem;margin-bottom:0.5rem;">' +
-      '<code id="ytdlpCmd" style="flex:1;background:#000;border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:0.45rem;font-size:0.68rem;color:var(--cyan);overflow-x:auto;white-space:nowrap;"></code>' +
-      '<button class="btn btn--ghost" id="copyCmdBtn" style="padding:0.3rem 0.6rem;font-size:0.72rem;">Copy</button></div>' +
-      '<p><strong>🌐 Downloader site:</strong> <a href="https://cobalt.tools/" target="_blank" rel="noopener" style="color:var(--primary-light);">cobalt.tools</a> — third-party, your discretion.</p>' +
+      '<p style="margin-bottom:0.6rem;"><strong>⭐ Vidlens Downloader</strong> — free desktop app (~1.8 MB) that saves the video and its subtitles.</p>' +
+      '<a class="btn" href="https://github.com/VideoTag/vidlens-downloads/releases/latest" target="_blank" rel="noopener">⬇ Get the app</a>' +
+      '<p style="margin-top:0.6rem;"><strong>✅ Official:</strong> the platform\\'s own download / offline feature also works.</p>' +
       '<p style="margin-top:0.5rem;color:var(--muted);font-size:0.72rem;">Only save videos you have the right to download. Then drop the file here.</p>' +
       '</div>' : '') +
     '</div>';
 
   var dlBtn = document.getElementById('dlHelpBtn');
   if (dlBtn) {
-    var cmdEl = document.getElementById('ytdlpCmd');
-    if (cmdEl) cmdEl.textContent = 'yt-dlp -f "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]" -o "video.mp4" "' + PACK.watchUrl + '"';
     dlBtn.addEventListener('click', function() {
       var box = document.getElementById('dlRoutes');
       if (box) box.style.display = box.style.display === 'none' ? 'block' : 'none';
     });
-    var copyBtn = document.getElementById('copyCmdBtn');
-    if (copyBtn) {
-      copyBtn.addEventListener('click', function() {
-        var t = document.getElementById('ytdlpCmd').textContent;
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(t).then(function() { hint('Command copied'); }, function() { hint('Copy failed'); });
-        }
-      });
-    }
   }
 
   var dz = document.getElementById('dropzone');
