@@ -1,6 +1,6 @@
-# 🎬 VideoLens: Video Reactions & Comments System
+# 🎬 Vidlens: Video Reactions & Comments System
 
-VideoLens (formerly ReactVid / VideoTAG) is a web application that lets you add timestamped reactions and comments to videos from many platforms — and take **everything offline** as a self-contained ZIP pack (video + comments + interactive viewer).
+Vidlens (formerly ReactVid / VideoTAG) is a web application that lets you add timestamped reactions and comments to videos from many platforms — and take **everything offline** as a self-contained ZIP pack (video + comments + interactive viewer).
 
 **Live app:** https://vidlens.net/ — see also [About](https://vidlens.net/about.html) · [How it works](https://vidlens.net/guide.html) · [FAQ](https://vidlens.net/faq.html)
 
@@ -52,7 +52,7 @@ The flagship export. `Export → Offline Pack (ZIP)` produces a folder you can o
 
 - **Local files** — bundled automatically.
 - **Direct video URLs** (`.mp4`, `.webm`, …) — downloaded straight into the ZIP (when the host allows cross-origin downloads).
-- **Streaming platforms (YouTube, TikTok, …)** — browsers cannot download their protected streams, and platform terms restrict it. At export time the app walks you through it: an **"Open video downloader"** button copies the video URL and opens an external open-source downloader (cobalt.tools) in a new tab; once you have the file, **attach it** and the MP4 ships inside the ZIP. Only download content you have the right to save. You can also just drop a `video.mp4` next to `viewer.html` later — the viewer picks it up automatically, or lets you load any file via a button/drag & drop.
+- **Streaming platforms (YouTube, TikTok, …)** — browsers cannot download their protected streams, and platform terms restrict it. At export time the app offers three ranked routes: **✅ the platform's own download/offline feature**, **⌨️ a prefilled `yt-dlp` command** (local open-source tool, no website involved — just copy &amp; run), or **🌐 a downloader site** (cobalt.tools) if you prefer not to install anything. Then **attach the file** and the MP4 ships inside the ZIP. Only save videos you have the right to download. You can also drop a `video.mp4` next to `viewer.html` later — the viewer finds it automatically, or loads any file via button/drag & drop.
 
 ## 🌐 Supported Platforms
 
@@ -95,7 +95,7 @@ flowchart TD
 
 ## 🚀 Installation
 
-VideoLens is a browser-based application that doesn't require installation. Use the [live app](https://vidlens.net/) or run it locally:
+Vidlens is a browser-based application that doesn't require installation. Use the [live app](https://vidlens.net/) or run it locally:
 
 ```bash
 git clone https://github.com/VideoTag/videotag.git
@@ -142,7 +142,7 @@ OR upload a local file: click **Upload File** or **drag & drop** a video anywher
 | Format | Features                                                  | Best For                          |
 |--------|-----------------------------------------------------------|-----------------------------------|
 | **Offline Pack (ZIP)** | Video + viewer + all data formats in one folder | Offline review & archiving |
-| HTML   | Single interactive webpage (embeds local video as base64)  | Online sharing and presentation   |
+| HTML report | Self-contained page: notes + player, **load any local video file into it** (drag & drop), embeds local uploads | Sharing a reviewable report |
 | PDF    | Formatted document with video information and comments     | Professional documentation        |
 | CSV    | Plain data format, easily imported into spreadsheets       | Data analysis and processing      |
 | JSON   | Complete structured data incl. transcript & metadata       | Programmatic use / backups        |

@@ -1,5 +1,5 @@
 /* ----------------------------------------
-   VideoLens - Video Reactions & Comments
+   Vidlens - Video Reactions & Comments
    Version 5.0.0
    ---------------------------------------- */
 
@@ -2511,4 +2511,26 @@ body {
     transform: translateY(115vh) rotate(340deg);
     opacity: 0.85;
   }
+}
+
+/* Pack dialog: yt-dlp command row */
+.pack-video-cmd {
+  display: flex;
+  gap: var(--space-2);
+  align-items: stretch;
+  margin-top: var(--space-2);
+}
+
+.pack-video-cmd code {
+  flex: 1;
+  min-width: 0;
+  background: #000;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--color-accent-cyan);
+  overflow-x: auto;
+  white-space: nowrap;
 }

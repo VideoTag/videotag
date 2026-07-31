@@ -1,5 +1,5 @@
 /**
- * VideoLens - Video Reactions & Comments Application
+ * Vidlens - Video Reactions & Comments Application
  * 
  * A premium application for adding timestamped reactions
  * and comments to videos from multiple platforms.
@@ -310,7 +310,7 @@ async function fetchVideoMetadata(url) {
     if (meta.title) {
       state.videoTitle = meta.title;
       if (elements.videoTitleDisplay) elements.videoTitleDisplay.textContent = meta.title;
-      document.title = `${meta.title} - VideoLens`;
+      document.title = `${meta.title} - Vidlens`;
     }
     if (meta.author_name) state.videoAuthor = meta.author_name;
     if (meta.thumbnail_url) state.videoThumbnail = meta.thumbnail_url;
@@ -1988,7 +1988,7 @@ function exportText() {
     showToast('No comments included — exporting metadata only', 'info');
   }
   
-  let text = `VideoLens Export\n`;
+  let text = `Vidlens Export\n`;
   text += `Video: ${state.videoTitle}\n`;
   text += `Platform: ${PROVIDER_NAMES[state.currentProvider]}\n`;
   text += `Date: ${new Date().toLocaleString()}\n`;
@@ -2021,7 +2021,7 @@ async function exportPDF() {
   // Title
   doc.setFontSize(24);
   doc.setTextColor(99, 102, 241);
-  doc.text('VideoLens Export', 20, 25);
+  doc.text('Vidlens Export', 20, 25);
   
   // Video info
   doc.setFontSize(12);
@@ -2146,20 +2146,6 @@ function getVideoWatchUrl() {
   }
 }
 
-// Generate timeline markers data for HTML export
-function getTimelineMarkersData() {
-  const data = getCommentsData();
-  const duration = state.videoDuration || 300;
-  return data.map((d, i) => ({
-    index: i,
-    timestamp: d.timestamp,
-    position: Math.min((d.timestamp / duration) * 100, 100),
-    type: d.type,
-    text: d.text.substring(0, 30) + (d.text.length > 30 ? '...' : ''),
-    time: d.time
-  }));
-}
-
 // Builds a provider-aware seek URL (embed reload with a start offset)
 function getSeekableEmbedInfo() {
   const videoId = state.currentVideoId;
@@ -2177,437 +2163,481 @@ function getSeekableEmbedInfo() {
 }
 
 // Main HTML generator for online videos (YouTube, Vimeo, etc.)
-function generateHTMLContent() {
-  const data = getCommentsData();
-  const markers = getTimelineMarkersData();
-  const videoId = state.currentVideoId;
+// Ways to obtain a video file, ranked: official routes first, a local tool
+// second (no third-party website involved), a downloader site last.
+function getDownloadRoutes(watchUrl, providerName) {
+  const url = watchUrl || '';
+  return [
+    {
+      icon: '✅',
+      title: `${providerName}'s own download`,
+      body: `The safest route: use the platform's official download / offline feature (e.g. YouTube Premium offline, or YouTube Studio for videos you uploaded yourself).`,
+      command: null,
+      link: url,
+      linkLabel: 'Open the video',
+    },
+    {
+      icon: '⌨️',
+      title: 'yt-dlp (local tool, nothing leaves your machine)',
+      body: 'Free and open source. Install it once, then run this command in a terminal — no website involved.',
+      command: url ? `yt-dlp -f "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]" -o "video.mp4" "${url}"` : null,
+      link: 'https://github.com/yt-dlp/yt-dlp#installation',
+      linkLabel: 'Install yt-dlp',
+    },
+    {
+      icon: '🌐',
+      title: 'A downloader website',
+      body: 'If you prefer not to install anything, an open-source web downloader such as cobalt can fetch the file for you. Third-party site — use at your own discretion.',
+      command: null,
+      link: 'https://cobalt.tools/',
+      linkLabel: 'Open cobalt.tools',
+    },
+  ];
+}
+
+function buildReportPayload() {
   const { embedUrl, seekTemplate } = getSeekableEmbedInfo();
-  const watchUrl = getVideoWatchUrl();
+  return {
+    title: state.videoTitle,
+    author: state.videoAuthor,
+    provider: state.currentProvider,
+    providerName: PROVIDER_NAMES[state.currentProvider] || state.currentProvider,
+    watchUrl: getVideoWatchUrl() || null,
+    embedUrl: isNativeVideoProvider() ? null : embedUrl,
+    seekTemplate: seekTemplate,
+    duration: state.videoDuration,
+    exportDate: new Date().toISOString(),
+    comments: getCommentsData(),
+    transcript: [...transcriptionState.transcript].sort((a, b) => a.timestamp - b.timestamp),
+    directUrl: state.currentProvider === 'direct' ? state.originalVideoUrl : null,
+  };
+}
+
+// One self-contained HTML report for every source type.
+// embeddedVideo: { dataUrl, type } when the video is inlined (local uploads),
+// otherwise the report offers the platform embed plus "load your own file".
+function generateReportHTML(embeddedVideo = null) {
+  const payload = buildReportPayload();
+  const routes = payload.watchUrl || payload.embedUrl ? getDownloadRoutes(payload.watchUrl, payload.providerName) : [];
+  const json = JSON.stringify(payload).replace(/</g, '\\u003c');
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${sanitizeHTML(state.videoTitle)} - VideoLens Export</title>
-  <style>
-    :root { 
-      --primary: #6366f1; 
-      --primary-light: #818cf8;
-      --secondary: #ec4899;
-      --bg: #05050a; 
-      --surface: #0f0f1a; 
-      --surface-elevated: #151522;
-      --text: #fff; 
-      --text-secondary: #a0a0b8;
-      --muted: #5a5a70;
-      --yellow: #fbbf24;
-      --cyan: #22d3ee;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { 
-      font-family: 'Segoe UI', system-ui, sans-serif; 
-      background: var(--bg); 
-      color: var(--text); 
-      line-height: 1.6; 
-      padding: 2rem; 
-      max-width: 1000px; 
-      margin: 0 auto; 
-    }
-    .header { text-align: center; margin-bottom: 2rem; }
-    h1 { 
-      font-size: 2rem; 
-      margin-bottom: 0.5rem; 
-      background: linear-gradient(135deg, #6366f1, #ec4899); 
-      -webkit-background-clip: text; 
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    .meta { color: var(--muted); font-size: 0.875rem; margin-bottom: 1rem; }
-    .meta span {
-      display: inline-block;
-      padding: 0.25rem 0.75rem;
-      background: var(--surface);
-      border-radius: 20px;
-      margin: 0.25rem;
-    }
-    .video-section {
-      background: var(--surface);
-      border-radius: 16px;
-      padding: 1rem;
-      margin-bottom: 2rem;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-    }
-    .embed-wrapper {
-      width: 100%;
-      aspect-ratio: 16/9;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-    }
-    .embed-wrapper iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
-      border-radius: 12px;
-    }
-    .seek-controls {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      margin-top: 1rem;
-      padding: 0.75rem;
-      background: var(--surface-elevated);
-      border-radius: 8px;
-    }
-    .seek-controls span {
-      color: #fff;
-      font-size: 12px;
-      white-space: nowrap;
-    }
-    .seek-controls input {
-      padding: 6px 10px;
-      border: 1px solid rgba(255,255,255,0.2);
-      border-radius: 6px;
-      background: rgba(255,255,255,0.1);
-      color: #fff;
-      font-family: monospace;
-      font-size: 14px;
-      width: 70px;
-    }
-    .seek-controls button {
-      padding: 6px 14px;
-      background: linear-gradient(135deg, #6366f1, #ec4899);
-      border: none;
-      border-radius: 6px;
-      color: #fff;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .seek-controls button:hover { opacity: 0.9; }
-    .getvideo {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-      margin-top: 0.75rem;
-      padding: 0.75rem;
-      background: var(--surface-elevated);
-      border: 1px dashed rgba(255,255,255,0.15);
-      border-radius: 8px;
-    }
-    .getvideo button {
-      padding: 6px 14px;
-      background: transparent;
-      border: 1px solid var(--primary);
-      border-radius: 6px;
-      color: var(--primary-light);
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .getvideo button:hover { background: rgba(99,102,241,0.15); }
-    .getvideo small { color: var(--muted); font-size: 0.72rem; line-height: 1.4; flex: 1; min-width: 200px; }
-    .timeline {
-      flex: 1;
-      position: relative;
-      height: 30px;
-      cursor: pointer;
-      margin-left: 1rem;
-    }
-    .timeline-track {
-      position: absolute;
-      top: 50%;
-      left: 0;
-      right: 0;
-      height: 6px;
-      transform: translateY(-50%);
-      background: rgba(255,255,255,0.1);
-      border-radius: 3px;
-    }
-    .timeline-markers { position: absolute; inset: 0; }
-    .timeline-marker {
-      position: absolute;
-      top: 50%;
-      width: 12px;
-      height: 12px;
-      margin-left: -6px;
-      transform: translateY(-50%);
-      border-radius: 50%;
-      cursor: pointer;
-      transition: transform 0.2s;
-      z-index: 10;
-    }
-    .timeline-marker:hover { transform: translateY(-50%) scale(1.5); }
-    .timeline-marker.reaction {
-      background: var(--yellow);
-      box-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
-    }
-    .timeline-marker.comment {
-      background: var(--cyan);
-      box-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
-    }
-    .timeline-marker .tooltip {
-      position: absolute;
-      bottom: calc(100% + 8px);
-      left: 50%;
-      transform: translateX(-50%);
-      padding: 0.5rem 0.75rem;
-      background: var(--surface-elevated);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 6px;
-      font-size: 0.75rem;
-      white-space: nowrap;
-      opacity: 0;
-      visibility: hidden;
-      transition: all 0.2s;
-      pointer-events: none;
-    }
-    .timeline-marker:hover .tooltip { opacity: 1; visibility: visible; }
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-      gap: 1rem;
-      margin-bottom: 2rem;
-    }
-    .stat {
-      padding: 1.25rem;
-      background: var(--surface);
-      border-radius: 12px;
-      text-align: center;
-      border: 1px solid rgba(255,255,255,0.05);
-    }
-    .stat-value {
-      font-size: 1.75rem;
-      font-weight: 700;
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    .stat-label {
-      font-size: 0.75rem;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    h2 {
-      font-size: 1.25rem;
-      margin-bottom: 1rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    h2::before {
-      content: '';
-      display: block;
-      width: 4px;
-      height: 24px;
-      background: var(--primary);
-      border-radius: 2px;
-    }
-    .comments-list { display: flex; flex-direction: column; gap: 0.75rem; }
-    .comment { 
-      display: flex; 
-      gap: 1rem; 
-      padding: 1rem 1.25rem; 
-      background: var(--surface); 
-      border-radius: 12px; 
-      border: 1px solid rgba(255,255,255,0.05);
-      transition: all 0.2s;
-      cursor: pointer;
-    }
-    .comment:hover {
-      transform: translateX(4px);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
-      border-color: var(--primary);
-    }
-    .comment.reaction { border-left: 3px solid var(--yellow); }
-    .timestamp { 
-      padding: 0.35rem 0.75rem; 
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      border-radius: 8px; 
-      font-family: 'SF Mono', 'Fira Code', monospace; 
-      font-size: 0.8rem; 
-      flex-shrink: 0;
-      font-weight: 600;
-      color: white;
-      border: none;
-      cursor: pointer;
-      transition: transform 0.2s;
-    }
-    .timestamp:hover { transform: scale(1.05); }
-    .text { flex: 1; color: var(--text-secondary); }
-    .emoji { font-size: 1.25rem; margin-right: 0.5rem; }
-    .footer {
-      text-align: center;
-      margin-top: 3rem;
-      padding-top: 2rem;
-      border-top: 1px solid rgba(255,255,255,0.05);
-      color: var(--muted);
-      font-size: 0.875rem;
-    }
-    @media (max-width: 600px) {
-      body { padding: 1rem; }
-      .comment { flex-direction: column; gap: 0.5rem; }
-      .timestamp { align-self: flex-start; }
-      .seek-controls { flex-wrap: wrap; }
-      .timeline { width: 100%; margin: 0.5rem 0 0 0; }
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<meta name="generator" content="Vidlens — https://vidlens.net/">
+<title>${sanitizeHTML(payload.title)} — Vidlens report</title>
+<style>
+  :root {
+    --primary: #6366f1; --primary-light: #818cf8; --secondary: #ec4899;
+    --bg: #05050a; --surface: #0f0f1a; --surface-2: #151522; --surface-3: #1a1a2a;
+    --text: #fff; --text-2: #a0a0b8; --muted: #5a5a70;
+    --yellow: #fbbf24; --cyan: #22d3ee; --green: #10b981;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.6;
+    padding: 1.5rem; max-width: 1400px; margin: 0 auto;
+  }
+  header { text-align: center; margin-bottom: 1.5rem; }
+  h1 {
+    font-size: clamp(1.3rem, 3vw, 1.8rem); margin-bottom: 0.5rem;
+    background: linear-gradient(135deg, #6366f1, #ec4899);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .meta { color: var(--muted); font-size: 0.82rem; }
+  .meta span { display: inline-block; padding: 0.2rem 0.7rem; background: var(--surface); border-radius: 20px; margin: 0.2rem; }
+  .badge-offline { color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+  .layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 1.5rem; align-items: start; }
+  @media (max-width: 950px) { .layout { grid-template-columns: 1fr; } .left { position: static !important; } }
+  .left { position: sticky; top: 1rem; }
+  .box { background: var(--surface); border-radius: 16px; padding: 1rem; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+  .stage { position: relative; width: 100%; border-radius: 12px; overflow: hidden; background: #000; }
+  .stage video { width: 100%; max-height: 62vh; display: block; background: #000; }
+  .stage iframe { width: 100%; aspect-ratio: 16/9; border: 0; display: block; }
+  .stage.vertical iframe { aspect-ratio: 9/16; max-height: 70vh; margin: 0 auto; width: auto; }
+  .srcbar { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin-top: 0.75rem; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.55rem 1rem;
+    background: linear-gradient(135deg, #6366f1, #ec4899); color: #fff; border: none;
+    border-radius: 8px; font-weight: 600; font-size: 0.85rem; cursor: pointer;
+    text-decoration: none; font-family: inherit;
+  }
+  .btn:hover { opacity: 0.92; }
+  .btn--ghost { background: var(--surface-2); border: 1px solid rgba(255,255,255,0.12); color: var(--text); }
+  .btn--sm { padding: 0.35rem 0.7rem; font-size: 0.78rem; }
+  .srcbar__hint { color: var(--muted); font-size: 0.75rem; flex: 1; min-width: 160px; }
+  .timerow { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.75rem; font-family: Consolas, monospace; font-size: 0.8rem; color: var(--text-2); }
+  .timeline { flex: 1; position: relative; height: 24px; cursor: pointer; }
+  .track { position: absolute; top: 50%; left: 0; right: 0; height: 6px; transform: translateY(-50%); background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; }
+  .fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--primary), var(--secondary)); }
+  .marker { position: absolute; top: 50%; width: 10px; height: 10px; margin-left: -5px; transform: translateY(-50%); border-radius: 50%; cursor: pointer; z-index: 5; }
+  .marker:hover { transform: translateY(-50%) scale(1.5); }
+  .marker.reaction { background: var(--yellow); box-shadow: 0 0 8px rgba(251,191,36,0.5); }
+  .marker.comment { background: var(--cyan); box-shadow: 0 0 8px rgba(34,211,238,0.5); }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-top: 1rem; }
+  .stat { padding: 0.85rem; background: var(--surface); border-radius: 12px; text-align: center; border: 1px solid rgba(255,255,255,0.05); }
+  .stat b { display: block; font-size: 1.3rem; background: linear-gradient(135deg, var(--primary), var(--secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .stat span { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  details.get { margin-top: 1rem; background: var(--surface-2); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; }
+  details.get > summary { cursor: pointer; padding: 0.8rem 1rem; font-weight: 600; font-size: 0.86rem; list-style: none; }
+  details.get > summary::-webkit-details-marker { display: none; }
+  details.get > summary::before { content: '▸ '; color: var(--primary-light); }
+  details.get[open] > summary::before { content: '▾ '; }
+  .routes { padding: 0 1rem 1rem; display: flex; flex-direction: column; gap: 0.7rem; }
+  .route { padding: 0.8rem; background: var(--surface); border-radius: 10px; border: 1px solid rgba(255,255,255,0.05); }
+  .route h4 { font-size: 0.85rem; margin-bottom: 0.25rem; }
+  .route p { font-size: 0.76rem; color: var(--muted); margin-bottom: 0.5rem; }
+  .cmd { display: flex; gap: 0.4rem; align-items: stretch; }
+  .cmd code { flex: 1; background: #000; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 0.5rem 0.6rem; font-family: Consolas, monospace; font-size: 0.7rem; color: var(--cyan); overflow-x: auto; white-space: nowrap; }
+  .warn { margin-top: 0.6rem; font-size: 0.72rem; color: var(--muted); border-left: 2px solid var(--yellow); padding-left: 0.6rem; }
+  .panel { background: var(--surface); border-radius: 16px; padding: 1.1rem; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+  .panel h2 { font-size: 1rem; margin-bottom: 0.9rem; display: flex; align-items: center; gap: 0.5rem; }
+  .panel h2::before { content: ''; width: 4px; height: 18px; background: var(--primary); border-radius: 2px; }
+  .tools { display: flex; gap: 0.5rem; margin-bottom: 0.9rem; flex-wrap: wrap; }
+  .tools input { flex: 1; min-width: 130px; padding: 0.45rem 0.8rem; background: var(--surface-2); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: var(--text); font-size: 0.82rem; font-family: inherit; }
+  .tools input:focus { outline: none; border-color: var(--primary); }
+  .chip { padding: 0.4rem 0.85rem; background: var(--surface-2); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; color: var(--text-2); font-size: 0.76rem; cursor: pointer; font-family: inherit; }
+  .chip.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .list { display: flex; flex-direction: column; gap: 0.55rem; max-height: 62vh; overflow-y: auto; padding-right: 0.25rem; }
+  .list::-webkit-scrollbar { width: 8px; }
+  .list::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 4px; }
+  .item { display: flex; gap: 0.7rem; padding: 0.7rem 0.9rem; background: var(--surface-2); border-radius: 10px; border: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: border-color 0.2s, background 0.2s, transform 0.15s; }
+  .item:hover { transform: translateX(3px); border-color: var(--primary); }
+  .item.reaction { border-left: 3px solid var(--yellow); }
+  .item.active { border-color: var(--primary); background: var(--surface-3); box-shadow: 0 0 16px rgba(99,102,241,0.25); }
+  .ts { padding: 0.25rem 0.55rem; background: linear-gradient(135deg, var(--primary), var(--secondary)); border-radius: 6px; font-family: Consolas, monospace; font-size: 0.72rem; font-weight: 600; color: #fff; flex-shrink: 0; align-self: flex-start; border: none; cursor: pointer; }
+  .txt { flex: 1; color: var(--text-2); font-size: 0.87rem; word-break: break-word; }
+  .emo { font-size: 1.05rem; margin-right: 0.35rem; }
+  .empty { text-align: center; color: var(--muted); padding: 1.5rem; font-size: 0.85rem; }
+  .tline { display: flex; gap: 0.5rem; padding: 0.4rem 0.7rem; background: var(--surface-2); border-radius: 8px; font-size: 0.82rem; cursor: pointer; }
+  .tline:hover { background: var(--surface-3); }
+  footer { text-align: center; margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid rgba(255,255,255,0.05); color: var(--muted); font-size: 0.78rem; }
+  footer a { color: var(--primary-light); text-decoration: none; }
+  .toast { position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%); background: var(--surface-3); border: 1px solid rgba(255,255,255,0.15); padding: 0.6rem 1.2rem; border-radius: 10px; font-size: 0.82rem; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 50; }
+  .toast.show { opacity: 1; }
+  body.drag::after { content: '📂 Drop the video file to play it here'; position: fixed; inset: 0; background: rgba(5,5,10,0.85); border: 3px dashed var(--primary); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; font-weight: 700; z-index: 100; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
 </head>
 <body>
-  <div class="header">
-    <h1>${sanitizeHTML(state.videoTitle)}</h1>
-    <p class="meta">
-      <span>📺 ${PROVIDER_NAMES[state.currentProvider]}</span>
-      <span>📅 ${new Date().toLocaleDateString()}</span>
-      <span>💬 ${data.length} items</span>
-    </p>
-  </div>
-  
-  <div class="video-section">
-    <div class="embed-wrapper">
-      <iframe
-        id="yt-iframe"
-        src="${embedUrl}"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        allowfullscreen>
-      </iframe>
-    </div>
+<header>
+  <h1 id="title"></h1>
+  <p class="meta" id="meta"></p>
+</header>
 
-    <div class="seek-controls"${seekTemplate ? '' : ' style="display:none"'}>
-      <span>⏱️ Jump to:</span>
-      <input type="text" id="seek-input" placeholder="0:00">
-      <button id="seek-btn">Go</button>
-      
-      <div class="timeline" id="timeline">
-        <div class="timeline-track"></div>
-        <div class="timeline-markers">
-          ${markers.map(m => `
-          <div class="timeline-marker ${m.type}" style="left: ${m.position}%" data-time="${m.timestamp}">
-            <div class="tooltip">[${m.time}] ${sanitizeHTML(m.text)}</div>
-          </div>
-          `).join('')}
-        </div>
+<div class="layout">
+  <div class="left">
+    <div class="box">
+      <div class="stage" id="stage"></div>
+
+      <div class="srcbar">
+        <button class="btn btn--ghost btn--sm" id="pick">📂 Load video file</button>
+        <button class="btn btn--ghost btn--sm" id="urlBtn">🔗 Direct URL</button>
+        <button class="btn btn--ghost btn--sm" id="backBtn" style="display:none">↩ Online player</button>
+        <a class="btn btn--ghost btn--sm" id="watch" target="_blank" rel="noopener" style="display:none">▶ Watch online</a>
+        <span class="srcbar__hint" id="hint2">Load a copy of the video for real seeking — it plays offline, synced with your notes.</span>
       </div>
+      <input type="file" id="file" accept="video/*" hidden>
+
+      <div class="timerow">
+        <span id="cur">0:00</span>
+        <div class="timeline" id="tl">
+          <div class="track"><div class="fill" id="fill"></div></div>
+          <div id="marks"></div>
+        </div>
+        <span id="dur">0:00</span>
+      </div>
+
+      ${routes.length ? `
+      <details class="get">
+        <summary>📥 How to get the video file for offline playback</summary>
+        <div class="routes">
+          ${routes.map((r, i) => `
+          <div class="route">
+            <h4>${r.icon} ${sanitizeHTML(r.title)}</h4>
+            <p>${sanitizeHTML(r.body)}</p>
+            ${r.command ? `<div class="cmd"><code id="cmd${i}">${sanitizeHTML(r.command)}</code><button class="btn btn--ghost btn--sm" data-copy="cmd${i}">Copy</button></div>` : ''}
+            ${r.link ? `<a class="btn btn--ghost btn--sm" style="margin-top:0.5rem;" href="${r.link}" target="_blank" rel="noopener">${sanitizeHTML(r.linkLabel)}</a>` : ''}
+          </div>`).join('')}
+          <p class="warn">Only download videos you have the right to save — your own uploads, Creative-Commons content, or where the platform's terms allow offline copies. Respect creators and local law.</p>
+        </div>
+      </details>` : ''}
     </div>
 
-    ${watchUrl ? `
-    <div class="getvideo">
-      <button id="getvideo-btn">⬇ Download video for offline</button>
-      <small>Copies the video URL and opens an external downloader (cobalt.tools) in a new tab.
-      Only save videos you have the right to download — your own uploads, Creative Commons,
-      or where the platform's terms allow it.</small>
+    <div class="stats">
+      <div class="stat"><b id="sc">0</b><span>Comments</span></div>
+      <div class="stat"><b id="sr">0</b><span>Reactions</span></div>
+      <div class="stat"><b id="sd">0:00</b><span>Duration</span></div>
     </div>
-    ` : ''}
   </div>
 
-  <div class="stats">
-    <div class="stat">
-      <div class="stat-value">${data.filter(d => d.type === 'comment').length}</div>
-      <div class="stat-label">Comments</div>
+  <div class="panel">
+    <h2>Comments &amp; Reactions</h2>
+    <div class="tools">
+      <input type="search" id="q" placeholder="Search notes...">
+      <button class="chip on" data-f="all">All</button>
+      <button class="chip" data-f="comment">💬</button>
+      <button class="chip" data-f="reaction">⚡</button>
     </div>
-    <div class="stat">
-      <div class="stat-value">${data.filter(d => d.type === 'reaction').length}</div>
-      <div class="stat-label">Reactions</div>
-    </div>
-    <div class="stat">
-      <div class="stat-value">${formatTime(state.videoDuration)}</div>
-      <div class="stat-label">Duration</div>
-    </div>
+    <div class="list" id="list"></div>
+    <details id="tbox" style="display:none;margin-top:1rem;">
+      <summary style="cursor:pointer;font-weight:600;font-size:0.85rem;">📝 Transcript (<span id="tc">0</span> lines)</summary>
+      <div class="list" style="margin-top:0.6rem;max-height:35vh;" id="tlist"></div>
+    </details>
   </div>
+</div>
 
-  <h2>Comments & Reactions</h2>
-  <div class="comments-list">
-    ${data.map((d, i) => `
-    <div class="comment${d.type === 'reaction' ? ' reaction' : ''}" data-time="${d.timestamp}">
-      <button class="timestamp">[${d.time}]</button>
-      <span class="text">${d.emoji ? `<span class="emoji">${d.emoji}</span>` : ''}${sanitizeHTML(d.text)}</span>
-    </div>`).join('')}
-  </div>
+<footer>
+  <p>Exported from <strong>Vidlens</strong> — <a href="https://vidlens.net/" target="_blank" rel="noopener">vidlens.net</a></p>
+  <p style="margin-top:0.3rem;">Click any timestamp to jump · Space play/pause · ← → seek 5s (when a video file is loaded)</p>
+</footer>
 
-  <div class="footer">
-    <p>Exported from <strong>VideoLens</strong></p>
-  </div>
+<div class="toast" id="toast"></div>
 
-  <script>
-    const duration = ${state.videoDuration};
-    const seekTemplate = ${JSON.stringify(seekTemplate)};
-    const iframe = document.getElementById('yt-iframe');
-    const seekBtn = document.getElementById('seek-btn');
-    const seekInput = document.getElementById('seek-input');
+<script>
+var R = ${json};
+var EMBEDDED = ${embeddedVideo ? 'true' : 'false'};
+var video = null, ready = false, filter = 'all', query = '';
 
-    function parseTime(str) {
-      if (!str) return 0;
-      const parts = str.split(':').map(Number);
-      if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
-      if (parts.length === 2) return parts[0] * 60 + parts[1];
-      return parseInt(str) || 0;
+function fmt(s) {
+  if (!s || isNaN(s)) return '0:00';
+  s = Math.floor(s);
+  var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+  var p = function (n) { return (n < 10 ? '0' : '') + n; };
+  return h > 0 ? h + ':' + p(m) + ':' + p(x) : m + ':' + p(x);
+}
+function esc(t) { var d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+function toast(m) {
+  var el = document.getElementById('toast');
+  el.textContent = m; el.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(function () { el.classList.remove('show'); }, 2800);
+}
+
+// ---------- header ----------
+document.getElementById('title').textContent = R.title;
+document.title = R.title + ' — Vidlens report';
+var bits = ['<span>📺 ' + esc(R.providerName) + '</span>'];
+if (R.author) bits.push('<span>👤 ' + esc(R.author) + '</span>');
+bits.push('<span>📅 ' + new Date(R.exportDate).toLocaleDateString() + '</span>');
+bits.push('<span>💬 ' + R.comments.length + ' notes</span>');
+bits.push('<span class="badge-offline">● Notes readable offline</span>');
+document.getElementById('meta').innerHTML = bits.join('');
+document.getElementById('sc').textContent = R.comments.filter(function (c) { return c.type === 'comment'; }).length;
+document.getElementById('sr').textContent = R.comments.filter(function (c) { return c.type === 'reaction'; }).length;
+document.getElementById('sd').textContent = fmt(R.duration);
+document.getElementById('dur').textContent = fmt(R.duration);
+if (R.watchUrl) { var w = document.getElementById('watch'); w.href = R.watchUrl; w.style.display = ''; }
+
+// ---------- player ----------
+var stage = document.getElementById('stage');
+
+function attach(v) {
+  video = v; ready = false;
+  v.addEventListener('loadedmetadata', function () {
+    ready = true;
+    if (v.duration && isFinite(v.duration)) {
+      R.duration = v.duration;
+      document.getElementById('dur').textContent = fmt(v.duration);
+      document.getElementById('sd').textContent = fmt(v.duration);
+      marks();
     }
+  });
+  v.addEventListener('timeupdate', tick);
+}
 
-    function formatTime(sec) {
-      if (!sec || isNaN(sec)) return '0:00';
-      const h = Math.floor(sec / 3600);
-      const m = Math.floor((sec % 3600) / 60);
-      const s = Math.floor(sec % 60);
-      const pad = n => n.toString().padStart(2, '0');
-      return h > 0 ? h + ':' + pad(m) + ':' + pad(s) : m + ':' + pad(s);
-    }
+function showEmbed() {
+  if (!R.embedUrl) { showNoVideo(); return; }
+  stage.className = 'stage' + (R.provider === 'tiktok' || R.provider === 'instagram' || R.provider === 'youtube_shorts' ? ' vertical' : '');
+  stage.innerHTML = '<iframe src="' + R.embedUrl + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
+  video = null; ready = false;
+  document.getElementById('backBtn').style.display = 'none';
+  document.getElementById('hint2').textContent = 'Online player. Load a video file for real seeking and offline playback.';
+}
 
-    function seekTo(seconds) {
-      if (!seekTemplate) return;
-      iframe.src = seekTemplate.replace('{s}', Math.floor(seconds));
-    }
+function showNoVideo() {
+  stage.className = 'stage';
+  stage.innerHTML = '<div style="padding:2.5rem 1rem;text-align:center;color:var(--muted);font-size:0.9rem;">No video attached.<br>Use <strong>Load video file</strong> or drop a file anywhere on this page.</div>';
+  video = null; ready = false;
+}
 
-    seekBtn.addEventListener('click', function() {
-      var seconds = parseTime(seekInput.value);
-      if (seconds >= 0) seekTo(seconds);
-    });
-    
-    seekInput.addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') {
-        var seconds = parseTime(seekInput.value);
-        if (seconds >= 0) seekTo(seconds);
-      }
-    });
-    
-    // Timeline click
-    document.getElementById('timeline').addEventListener('click', function(e) {
-      if (e.target.closest('.timeline-marker')) return;
-      var rect = this.getBoundingClientRect();
-      var percent = (e.clientX - rect.left) / rect.width;
-      seekTo(percent * duration);
-    });
-    
-    // Marker clicks
-    document.querySelectorAll('.timeline-marker').forEach(function(m) {
-      m.addEventListener('click', function() {
-        seekTo(parseInt(this.dataset.time));
-      });
-    });
-    
-    // Comment clicks
-    document.querySelectorAll('.comment').forEach(function(c) {
-      c.addEventListener('click', function() {
-        seekTo(parseInt(this.dataset.time));
-      });
-    });
+function useFile(file) {
+  if (file.type && file.type.indexOf('video/') !== 0) { toast('That is not a video file'); return; }
+  playSrc(URL.createObjectURL(file), file.type);
+  toast('Playing: ' + file.name);
+}
 
-    // Download-video helper (external open-source downloader)
-    var gvBtn = document.getElementById('getvideo-btn');
-    if (gvBtn) {
-      gvBtn.addEventListener('click', function() {
-        var u = ${JSON.stringify(watchUrl || '')};
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(u).catch(function() {});
-        }
-        window.open('https://cobalt.tools/', '_blank', 'noopener');
-        gvBtn.textContent = '✓ URL copied — paste it in the downloader tab';
-        setTimeout(function() { gvBtn.textContent = '⬇ Download video for offline'; }, 4000);
-      });
-    }
-  </script>
+function playSrc(src, type) {
+  stage.className = 'stage';
+  stage.innerHTML = '';
+  var v = document.createElement('video');
+  v.controls = true; v.playsInline = true; v.preload = 'metadata';
+  v.src = src;
+  if (type) v.type = type;
+  v.addEventListener('error', function () { toast('Could not play that video source'); });
+  stage.appendChild(v);
+  attach(v);
+  if (R.embedUrl) document.getElementById('backBtn').style.display = '';
+  document.getElementById('hint2').textContent = 'Playing your local copy — timestamps seek for real.';
+}
+
+document.getElementById('pick').addEventListener('click', function () { document.getElementById('file').click(); });
+document.getElementById('file').addEventListener('change', function (e) {
+  var f = e.target.files && e.target.files[0];
+  if (f) useFile(f);
+});
+document.getElementById('urlBtn').addEventListener('click', function () {
+  var u = prompt('Paste a direct video URL (.mp4, .webm ...):', R.directUrl || '');
+  if (u) playSrc(u.trim(), '');
+});
+document.getElementById('backBtn').addEventListener('click', showEmbed);
+
+// drag & drop anywhere
+['dragenter', 'dragover'].forEach(function (ev) {
+  document.addEventListener(ev, function (e) { e.preventDefault(); document.body.classList.add('drag'); });
+});
+['dragleave', 'dragend'].forEach(function (ev) {
+  document.addEventListener(ev, function (e) { if (e.relatedTarget === null) document.body.classList.remove('drag'); });
+});
+document.addEventListener('drop', function (e) {
+  e.preventDefault(); document.body.classList.remove('drag');
+  var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) useFile(f);
+});
+
+// copy buttons for commands
+Array.prototype.forEach.call(document.querySelectorAll('[data-copy]'), function (b) {
+  b.addEventListener('click', function () {
+    var el = document.getElementById(b.getAttribute('data-copy'));
+    if (!el) return;
+    var t = el.textContent;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).then(function () { toast('Command copied'); }, function () { fallbackCopy(t); });
+    } else { fallbackCopy(t); }
+  });
+});
+function fallbackCopy(t) {
+  var ta = document.createElement('textarea');
+  ta.value = t; document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); toast('Command copied'); } catch (e) { toast('Copy failed — select it manually'); }
+  ta.remove();
+}
+
+// ---------- seeking ----------
+function seek(t) {
+  if (ready && video) {
+    video.currentTime = t;
+    video.play().catch(function () {});
+    if (window.innerWidth <= 950) video.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  if (R.seekTemplate) {
+    var f = stage.querySelector('iframe');
+    if (f) { f.src = R.seekTemplate.replace('{s}', Math.floor(t)); return; }
+  }
+  if (R.watchUrl) {
+    var sep = R.watchUrl.indexOf('?') === -1 ? '?' : '&';
+    var u = (R.provider === 'youtube' || R.provider === 'youtube_shorts') ? R.watchUrl + sep + 't=' + Math.floor(t) + 's'
+          : (R.provider === 'vimeo' ? R.watchUrl + '#t=' + Math.floor(t) + 's' : R.watchUrl);
+    window.open(u, '_blank', 'noopener');
+    return;
+  }
+  toast('Load the video file to jump to ' + fmt(t));
+}
+
+function marks() {
+  var wrap = document.getElementById('marks');
+  wrap.innerHTML = '';
+  var d = R.duration || 1;
+  R.comments.forEach(function (c) {
+    var m = document.createElement('div');
+    m.className = 'marker ' + c.type;
+    m.style.left = Math.min((c.timestamp / d) * 100, 100) + '%';
+    m.title = '[' + c.time + '] ' + c.text.substring(0, 60);
+    m.addEventListener('click', function (e) { e.stopPropagation(); seek(c.timestamp); });
+    wrap.appendChild(m);
+  });
+}
+document.getElementById('tl').addEventListener('click', function (e) {
+  if (e.target.className.indexOf('marker') !== -1) return;
+  var r = this.getBoundingClientRect();
+  seek(((e.clientX - r.left) / r.width) * (R.duration || 0));
+});
+
+function tick() {
+  if (!video) return;
+  var t = video.currentTime;
+  document.getElementById('cur').textContent = fmt(t);
+  document.getElementById('fill').style.width = Math.min((t / (R.duration || 1)) * 100, 100) + '%';
+  Array.prototype.forEach.call(document.querySelectorAll('#list .item'), function (row) {
+    var rt = parseFloat(row.getAttribute('data-t'));
+    if (t >= rt && t < rt + 4) row.classList.add('active'); else row.classList.remove('active');
+  });
+}
+
+// ---------- notes ----------
+function render() {
+  var box = document.getElementById('list');
+  box.innerHTML = '';
+  var q = query.toLowerCase(), n = 0;
+  R.comments.slice().sort(function (a, b) { return a.timestamp - b.timestamp; }).forEach(function (c) {
+    if (filter !== 'all' && c.type !== filter) return;
+    if (q && c.text.toLowerCase().indexOf(q) === -1 && c.time.indexOf(q) === -1) return;
+    n++;
+    var row = document.createElement('div');
+    row.className = 'item' + (c.type === 'reaction' ? ' reaction' : '');
+    row.setAttribute('data-t', c.timestamp);
+    row.innerHTML = '<button class="ts">[' + c.time + ']</button><span class="txt">' +
+      (c.emoji ? '<span class="emo">' + c.emoji + '</span>' : '') + esc(c.text) + '</span>';
+    row.addEventListener('click', function () { seek(c.timestamp); });
+    box.appendChild(row);
+  });
+  if (!n) box.innerHTML = '<div class="empty">No notes match.</div>';
+}
+document.getElementById('q').addEventListener('input', function (e) { query = e.target.value; render(); });
+Array.prototype.forEach.call(document.querySelectorAll('.chip'), function (c) {
+  c.addEventListener('click', function () {
+    Array.prototype.forEach.call(document.querySelectorAll('.chip'), function (x) { x.classList.remove('on'); });
+    c.classList.add('on'); filter = c.getAttribute('data-f'); render();
+  });
+});
+
+if (R.transcript.length) {
+  document.getElementById('tbox').style.display = '';
+  document.getElementById('tc').textContent = R.transcript.length;
+  var tl = document.getElementById('tlist');
+  R.transcript.forEach(function (line) {
+    var el = document.createElement('div');
+    el.className = 'tline';
+    el.innerHTML = '<span class="ts">[' + fmt(line.timestamp) + ']</span><span>' + esc(line.text) + '</span>';
+    el.addEventListener('click', function () { seek(line.timestamp); });
+    tl.appendChild(el);
+  });
+}
+
+document.addEventListener('keydown', function (e) {
+  var tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || !ready || !video) return;
+  if (e.code === 'Space') { e.preventDefault(); video.paused ? video.play() : video.pause(); }
+  else if (e.key === 'ArrowRight') { video.currentTime = Math.min(video.currentTime + 5, video.duration || 1e9); }
+  else if (e.key === 'ArrowLeft') { video.currentTime = Math.max(video.currentTime - 5, 0); }
+});
+
+// ---------- boot ----------
+${embeddedVideo ? `(function () {
+  var v = document.createElement('video');
+  v.controls = true; v.playsInline = true; v.preload = 'metadata';
+  v.src = ${JSON.stringify(embeddedVideo.dataUrl)};
+  stage.appendChild(v);
+  attach(v);
+  document.getElementById('hint2').textContent = 'The video is embedded in this file — it plays offline.';
+})();` : 'showEmbed();'}
+marks();
+render();
+</script>
 </body>
 </html>`;
 }
@@ -2617,32 +2647,31 @@ async function exportHTML() {
   if (data.length === 0) {
     showToast('No comments included — exporting metadata only', 'info');
   }
-  
+
   const isLocalVideo = state.currentProvider === 'upload' && state.uploadedVideo;
 
   if (isLocalVideo) {
     if (state.uploadedVideo.size > CONFIG.EMBED_VIDEO_LIMIT) {
-      showToast(`Video is too large to embed in a single HTML file (max ${formatFileSize(CONFIG.EMBED_VIDEO_LIMIT)}). Use the Offline Pack (ZIP) instead.`, 'warning');
+      showToast(`Video too large to embed in one HTML file (max ${formatFileSize(CONFIG.EMBED_VIDEO_LIMIT)}). Exporting the report — load the file in it, or use the Offline Pack (ZIP).`, 'warning');
+      downloadFile(generateReportHTML(null), `${state.videoTitle}_report.html`, 'text/html');
       return;
     }
-    // For local videos, embed as base64
-    showToast('Creating HTML with embedded video...', 'info');
-    
+
+    showToast('Embedding video into the HTML file...', 'info');
     try {
-      const videoBase64 = await fileToBase64(state.uploadedVideo);
-      const html = generateHTMLWithEmbeddedVideo(videoBase64, state.uploadedVideo.type);
-      downloadFile(html, `${state.videoTitle}_export.html`, 'text/html');
-      showToast('HTML exported with video!', 'success');
+      const dataUrl = await fileToBase64(state.uploadedVideo);
+      const html = generateReportHTML({ dataUrl, type: state.uploadedVideo.type });
+      downloadFile(html, `${state.videoTitle}_report.html`, 'text/html');
+      showToast('HTML report exported with the video inside!', 'success');
     } catch (error) {
       console.error('Export error:', error);
       showToast('Failed to export: ' + error.message, 'error');
     }
-  } else {
-    // For online videos, use thumbnail + link
-    const html = generateHTMLContent();
-    downloadFile(html, `${state.videoTitle}_export.html`, 'text/html');
-    showToast('HTML exported!', 'success');
+    return;
   }
+
+  downloadFile(generateReportHTML(null), `${state.videoTitle}_report.html`, 'text/html');
+  showToast('HTML report exported!', 'success');
 }
 
 // Convert file to base64
@@ -2653,283 +2682,6 @@ function fileToBase64(file) {
     reader.onerror = () => reject(new Error('Failed to read file'));
     reader.readAsDataURL(file);
   });
-}
-
-// Generate HTML with embedded base64 video
-function generateHTMLWithEmbeddedVideo(videoBase64, videoType) {
-  const data = getCommentsData();
-  
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${sanitizeHTML(state.videoTitle)} - VideoLens Export</title>
-  <style>
-    :root { 
-      --primary: #6366f1; 
-      --primary-light: #818cf8;
-      --secondary: #ec4899;
-      --bg: #05050a; 
-      --surface: #0f0f1a; 
-      --surface-elevated: #151522;
-      --text: #fff; 
-      --text-secondary: #a0a0b8;
-      --muted: #5a5a70; 
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { 
-      font-family: 'Segoe UI', system-ui, sans-serif; 
-      background: var(--bg); 
-      color: var(--text); 
-      line-height: 1.6; 
-      padding: 2rem; 
-      max-width: 1000px; 
-      margin: 0 auto; 
-    }
-    .header { text-align: center; margin-bottom: 2rem; }
-    h1 { 
-      font-size: 2rem; 
-      margin-bottom: 0.5rem; 
-      background: linear-gradient(135deg, #6366f1, #ec4899); 
-      -webkit-background-clip: text; 
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    .meta { color: var(--muted); font-size: 0.875rem; margin-bottom: 1rem; }
-    .meta span {
-      display: inline-block;
-      padding: 0.25rem 0.75rem;
-      background: var(--surface);
-      border-radius: 20px;
-      margin: 0.25rem;
-    }
-    .video-section {
-      background: var(--surface);
-      border-radius: 16px;
-      padding: 1rem;
-      margin-bottom: 2rem;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-    }
-    .video-container { 
-      background: #000; 
-      border-radius: 12px; 
-      overflow: hidden;
-      margin-bottom: 1rem;
-    }
-    .video-container video {
-      width: 100%;
-      max-height: 70vh;
-      display: block;
-    }
-    .time-display {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 1rem;
-      padding: 0.75rem;
-      background: var(--surface-elevated);
-      border-radius: 8px;
-      font-family: 'SF Mono', 'Fira Code', monospace;
-    }
-    .time-display .current {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: var(--primary-light);
-    }
-    .time-display .duration {
-      color: var(--muted);
-    }
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-      gap: 1rem;
-      margin-bottom: 2rem;
-    }
-    .stat {
-      padding: 1.25rem;
-      background: var(--surface);
-      border-radius: 12px;
-      text-align: center;
-      border: 1px solid rgba(255,255,255,0.05);
-    }
-    .stat-value {
-      font-size: 1.75rem;
-      font-weight: 700;
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    .stat-label {
-      font-size: 0.75rem;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    h2 {
-      font-size: 1.25rem;
-      margin-bottom: 1rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    h2::before {
-      content: '';
-      display: block;
-      width: 4px;
-      height: 24px;
-      background: var(--primary);
-      border-radius: 2px;
-    }
-    .comments-list { display: flex; flex-direction: column; gap: 0.75rem; }
-    .comment { 
-      display: flex; 
-      gap: 1rem; 
-      padding: 1rem 1.25rem; 
-      background: var(--surface); 
-      border-radius: 12px; 
-      border: 1px solid rgba(255,255,255,0.05);
-      transition: all 0.2s;
-      cursor: pointer;
-    }
-    .comment:hover {
-      transform: translateX(4px);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
-      border-color: var(--primary);
-    }
-    .comment.active {
-      border-color: var(--primary);
-      background: var(--surface-elevated);
-      box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
-    }
-    .comment.reaction { border-left: 3px solid #fbbf24; }
-    .timestamp { 
-      padding: 0.35rem 0.75rem; 
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      border-radius: 8px; 
-      font-family: 'SF Mono', 'Fira Code', monospace; 
-      font-size: 0.8rem; 
-      flex-shrink: 0;
-      font-weight: 600;
-      color: white;
-      border: none;
-      cursor: pointer;
-      transition: transform 0.2s;
-    }
-    .timestamp:hover { transform: scale(1.05); }
-    .text { flex: 1; color: var(--text-secondary); }
-    .emoji { font-size: 1.25rem; margin-right: 0.5rem; }
-    .footer {
-      text-align: center;
-      margin-top: 3rem;
-      padding-top: 2rem;
-      border-top: 1px solid rgba(255,255,255,0.05);
-      color: var(--muted);
-      font-size: 0.875rem;
-    }
-    @media (max-width: 600px) {
-      body { padding: 1rem; }
-      .comment { flex-direction: column; gap: 0.5rem; }
-      .timestamp { align-self: flex-start; }
-    }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>${sanitizeHTML(state.videoTitle)}</h1>
-    <p class="meta">
-      <span>📺 Local Video</span>
-      <span>📅 ${new Date().toLocaleDateString()}</span>
-      <span>💬 ${data.length} items</span>
-    </p>
-  </div>
-  
-  <div class="video-section">
-    <div class="video-container">
-      <video id="video" controls>
-        <source src="${videoBase64}" type="${videoType}">
-        Your browser does not support video.
-      </video>
-    </div>
-    <div class="time-display">
-      <span class="current" id="currentTime">0:00</span>
-      <span class="duration">/ ${formatTime(state.videoDuration)}</span>
-    </div>
-  </div>
-
-  <div class="stats">
-    <div class="stat">
-      <div class="stat-value">${data.filter(d => d.type === 'comment').length}</div>
-      <div class="stat-label">Comments</div>
-    </div>
-    <div class="stat">
-      <div class="stat-value">${data.filter(d => d.type === 'reaction').length}</div>
-      <div class="stat-label">Reactions</div>
-    </div>
-    <div class="stat">
-      <div class="stat-value">${formatTime(state.videoDuration)}</div>
-      <div class="stat-label">Duration</div>
-    </div>
-  </div>
-
-  <h2>Comments & Reactions</h2>
-  <div class="comments-list" id="commentsList">
-    ${data.map((d, i) => `
-    <div class="comment${d.type === 'reaction' ? ' reaction' : ''}" data-time="${d.timestamp}" data-index="${i}">
-      <button class="timestamp" onclick="seekTo(${d.timestamp})">[${d.time}]</button>
-      <span class="text">${d.emoji ? `<span class="emoji">${d.emoji}</span>` : ''}${sanitizeHTML(d.text)}</span>
-    </div>`).join('')}
-  </div>
-
-  <div class="footer">
-    <p>Exported from <strong>VideoLens</strong> — Video Reactions & Comments Tool</p>
-  </div>
-
-  <script>
-    const video = document.getElementById('video');
-    const currentTimeEl = document.getElementById('currentTime');
-    const comments = document.querySelectorAll('.comment');
-    
-    function formatTime(sec) {
-      if (!sec || isNaN(sec)) return '0:00';
-      const h = Math.floor(sec / 3600);
-      const m = Math.floor((sec % 3600) / 60);
-      const s = Math.floor(sec % 60);
-      const pad = n => n.toString().padStart(2, '0');
-      return h > 0 ? h + ':' + pad(m) + ':' + pad(s) : m + ':' + pad(s);
-    }
-    
-    function seekTo(time) {
-      video.currentTime = time;
-      video.play();
-      video.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-    
-    video.addEventListener('timeupdate', () => {
-      currentTimeEl.textContent = formatTime(video.currentTime);
-      
-      // Highlight active comments
-      const ct = video.currentTime;
-      comments.forEach(c => {
-        const t = parseInt(c.dataset.time);
-        if (ct >= t && ct < t + 3) {
-          c.classList.add('active');
-        } else {
-          c.classList.remove('active');
-        }
-      });
-    });
-    
-    // Click comment to seek
-    comments.forEach(c => {
-      c.addEventListener('click', () => {
-        seekTo(parseInt(c.dataset.time));
-      });
-    });
-  </script>
-</body>
-</html>`;
 }
 
 // Try to download a direct video URL into memory (works when the host allows CORS)
@@ -2997,11 +2749,17 @@ function askForPackVideo() {
             <div class="pack-video-step">
               <span class="pack-video-step__num">1</span>
               <div>
-                <strong>Don't have the file yet?</strong>
-                <p>Use the platform's official download/offline feature, or an external downloader — this button copies the video URL and opens one in a new tab.</p>
+                <strong>Don't have the file yet? Pick a route:</strong>
+                <p><strong>✅ Official</strong> — the platform's own download / offline feature (best option).</p>
+                <p><strong>⌨️ yt-dlp</strong> — a local open-source tool, no website involved:</p>
+                <div class="pack-video-cmd">
+                  <code id="packYtdlp">${sanitizeHTML(`yt-dlp -f "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]" -o "video.mp4" "${state.originalVideoUrl || getVideoWatchUrl() || ''}"`)}</code>
+                  <button class="btn btn--ghost btn--sm" id="packCopyCmd">Copy</button>
+                </div>
+                <p style="margin-top:0.5rem;"><strong>🌐 Downloader site</strong> — if you'd rather not install anything:</p>
                 <button class="btn btn--secondary btn--sm" id="packVideoDownloader">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                  <span>Open video downloader</span>
+                  <span>Open cobalt.tools</span>
                 </button>
               </div>
             </div>
@@ -3034,6 +2792,15 @@ function askForPackVideo() {
 
     modal.querySelector('#packVideoChoose').addEventListener('click', () => {
       modal.querySelector('#packVideoInput').click();
+    });
+    modal.querySelector('#packCopyCmd')?.addEventListener('click', async () => {
+      const cmd = modal.querySelector('#packYtdlp')?.textContent || '';
+      try {
+        await navigator.clipboard.writeText(cmd);
+        showToast('yt-dlp command copied — run it in a terminal', 'success');
+      } catch {
+        showToast('Select the command and copy it manually', 'info');
+      }
     });
     modal.querySelector('#packVideoDownloader')?.addEventListener('click', async () => {
       const url = state.originalVideoUrl || getVideoWatchUrl();
@@ -3161,7 +2928,7 @@ async function exportZIP() {
       folder.file('comments.csv', csv);
 
       // Plain text
-      let textContent = `VideoLens Offline Pack\n${'='.repeat(50)}\n\n`;
+      let textContent = `Vidlens Offline Pack\n${'='.repeat(50)}\n\n`;
       textContent += `Video: ${state.videoTitle}\n`;
       if (state.videoAuthor) textContent += `Author: ${state.videoAuthor}\n`;
       textContent += `Platform: ${PROVIDER_NAMES[state.currentProvider]}\n`;
@@ -3190,7 +2957,7 @@ async function exportZIP() {
 
     // README
     const watchUrl = getVideoWatchUrl();
-    const readme = `# VideoLens Offline Pack
+    const readme = `# Vidlens Offline Pack
 
 ## ${state.videoTitle}
 ${state.videoAuthor ? `**Author:** ${state.videoAuthor}\n` : ''}
@@ -3215,7 +2982,7 @@ ${data.length > 0 ? '- `comments.csv` — spreadsheet format (Excel / Google She
 - **Duration:** ${formatTime(state.videoDuration)}
 
 ---
-*Exported with VideoLens — https://vidlens.net/*
+*Exported with Vidlens — https://vidlens.net/*
 `;
     folder.file('README.md', readme);
 
@@ -3295,7 +3062,7 @@ function generateOfflineViewerHTML({ videoFileName, videoIncluded, thumbnailFile
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${sanitizeHTML(state.videoTitle)} — VideoLens Offline Pack</title>
+<title>${sanitizeHTML(state.videoTitle)} — Vidlens Offline Pack</title>
 <style>
   :root {
     --primary: #6366f1; --primary-light: #818cf8; --secondary: #ec4899;
@@ -3439,7 +3206,7 @@ function generateOfflineViewerHTML({ videoFileName, videoIncluded, thumbnailFile
 </div>
 
 <footer>
-  <p>Offline Pack exported from <strong>VideoLens</strong> — <a href="https://vidlens.net/" target="_blank" rel="noopener">vidlens.net</a></p>
+  <p>Offline Pack exported from <strong>Vidlens</strong> — <a href="https://vidlens.net/" target="_blank" rel="noopener">vidlens.net</a></p>
   <p>Space: play/pause &nbsp;·&nbsp; ← → : seek 5s &nbsp;·&nbsp; Click a timestamp to jump</p>
 </footer>
 
@@ -3476,7 +3243,7 @@ function hint(msg) {
 
 // ---- Header ----
 document.getElementById('title').textContent = PACK.title;
-document.title = PACK.title + ' — VideoLens Offline Pack';
+document.title = PACK.title + ' — Vidlens Offline Pack';
 var metaBits = ['<span>📺 ' + esc(PACK.providerName) + '</span>'];
 if (PACK.author) metaBits.push('<span>👤 ' + esc(PACK.author) + '</span>');
 metaBits.push('<span>📅 ' + new Date(PACK.exportDate).toLocaleDateString() + '</span>');
@@ -3512,20 +3279,37 @@ function showFallback() {
     'See <strong>GET-THE-VIDEO.md</strong> in this folder for details.</p>' +
     '<div style="display:flex;gap:0.5rem;justify-content:center;flex-wrap:wrap;">' +
     (PACK.watchUrl ? '<a class="btn" href="' + PACK.watchUrl + '" target="_blank" rel="noopener">▶ Watch online</a>' : '') +
-    (PACK.watchUrl ? '<button class="btn btn--ghost" id="dlHelpBtn">⬇ Open video downloader</button>' : '') +
+    (PACK.watchUrl ? '<button class="btn btn--ghost" id="dlHelpBtn">📥 How to get the file</button>' : '') +
     '</div>' +
-    (PACK.watchUrl ? '<p style="margin-top:0.75rem;font-size:0.72rem;color:var(--muted);">The downloader button copies the video URL and opens cobalt.tools in a new tab. Only save videos you have the right to download.</p>' : '') +
+    (PACK.watchUrl ?
+      '<div id="dlRoutes" style="display:none;margin-top:0.9rem;text-align:left;font-size:0.78rem;color:var(--text-2);">' +
+      '<p style="margin-bottom:0.4rem;"><strong>✅ Official:</strong> the platform\\'s own download / offline feature.</p>' +
+      '<p style="margin-bottom:0.3rem;"><strong>⌨️ yt-dlp</strong> (local tool, no website):</p>' +
+      '<div style="display:flex;gap:0.4rem;margin-bottom:0.5rem;">' +
+      '<code id="ytdlpCmd" style="flex:1;background:#000;border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:0.45rem;font-size:0.68rem;color:var(--cyan);overflow-x:auto;white-space:nowrap;"></code>' +
+      '<button class="btn btn--ghost" id="copyCmdBtn" style="padding:0.3rem 0.6rem;font-size:0.72rem;">Copy</button></div>' +
+      '<p><strong>🌐 Downloader site:</strong> <a href="https://cobalt.tools/" target="_blank" rel="noopener" style="color:var(--primary-light);">cobalt.tools</a> — third-party, your discretion.</p>' +
+      '<p style="margin-top:0.5rem;color:var(--muted);font-size:0.72rem;">Only save videos you have the right to download. Then drop the file here.</p>' +
+      '</div>' : '') +
     '</div>';
 
   var dlBtn = document.getElementById('dlHelpBtn');
   if (dlBtn) {
+    var cmdEl = document.getElementById('ytdlpCmd');
+    if (cmdEl) cmdEl.textContent = 'yt-dlp -f "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]" -o "video.mp4" "' + PACK.watchUrl + '"';
     dlBtn.addEventListener('click', function() {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(PACK.watchUrl).catch(function() {});
-      }
-      window.open('https://cobalt.tools/', '_blank', 'noopener');
-      hint('Video URL copied — paste it in the downloader, then drop the file here');
+      var box = document.getElementById('dlRoutes');
+      if (box) box.style.display = box.style.display === 'none' ? 'block' : 'none';
     });
+    var copyBtn = document.getElementById('copyCmdBtn');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', function() {
+        var t = document.getElementById('ytdlpCmd').textContent;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(t).then(function() { hint('Command copied'); }, function() { hint('Copy failed'); });
+        }
+      });
+    }
   }
 
   var dz = document.getElementById('dropzone');
@@ -3838,7 +3622,7 @@ function initEventListeners() {
     state.originalVideoUrl = null;
     state.videoAuthor = null;
     state.videoThumbnail = null;
-    document.title = 'VideoLens - Video Reactions & Comments';
+    document.title = 'Vidlens - Video Reactions & Comments';
     if (elements.searchComments) elements.searchComments.value = '';
     renderRecentVideos();
     stopTranscription();
@@ -4219,7 +4003,7 @@ function showStarModal() {
       <div class="modal__body" style="text-align:center;">
         <h3 class="modal__title" id="starModalTitle" style="margin-bottom:0.5rem;">Leaving already?</h3>
         <p style="color:var(--color-text-secondary);font-size:0.9rem;">
-          If VideoLens saved your timestamps today, a star on GitHub keeps this
+          If Vidlens saved your timestamps today, a star on GitHub keeps this
           free &amp; open-source project alive. It takes 2 seconds — we counted.
         </p>
       </div>

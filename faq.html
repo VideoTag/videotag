@@ -3,16 +3,30 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VideoLens FAQ — Offline Video Review, Downloads, Privacy</title>
-  <meta name="description" content="Frequently asked questions about VideoLens: supported platforms, downloading videos for offline review, the Offline Pack ZIP, SRT comment subtitles, privacy and file limits.">
+  <title>Vidlens FAQ — Offline Video Review, Downloads, Privacy</title>
+  <meta name="description" content="Frequently asked questions about Vidlens: supported platforms, downloading videos for offline review, the Offline Pack ZIP, SRT comment subtitles, privacy and file limits.">
+  <meta property="og:image" content="https://vidlens.net/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Vidlens — timestamped comments and reactions on any video, exportable offline">
+  <meta property="og:locale" content="en_US">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Vidlens FAQ">
+  <meta name="twitter:description" content="Everything about annotating videos and reviewing them offline with Vidlens.">
+  <meta name="twitter:image" content="https://vidlens.net/og-image.png">
+  <meta name="author" content="Gauthier Bros">
+  <meta name="robots" content="index, follow, max-image-preview:large">
   <link rel="canonical" href="https://vidlens.net/faq.html">
   <meta name="theme-color" content="#05050a">
-  <meta property="og:title" content="VideoLens FAQ">
-  <meta property="og:description" content="Everything about annotating videos and reviewing them offline with VideoLens.">
+  <meta property="og:title" content="Vidlens FAQ">
+  <meta property="og:description" content="Everything about annotating videos and reviewing them offline with Vidlens.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://vidlens.net/faq.html">
-  <meta property="og:site_name" content="VideoLens">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%AC%3C/text%3E%3C/svg%3E">
+  <meta property="og:site_name" content="Vidlens">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <script type="application/ld+json">
@@ -20,15 +34,15 @@
     "@context": "https://schema.org",
     "@type": "FAQPage",
     "mainEntity": [
-      { "@type": "Question", "name": "Is VideoLens free?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. VideoLens is completely free and open source. There is no account, no subscription and no tracking. The code is on GitHub." } },
+      { "@type": "Question", "name": "Is Vidlens free?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Vidlens is completely free and open source. There is no account, no subscription and no tracking. The code is on GitHub." } },
       { "@type": "Question", "name": "Which video platforms are supported?", "acceptedAnswer": { "@type": "Answer", "text": "YouTube, YouTube Shorts, TikTok, Vimeo, Dailymotion, Twitch, Facebook, Instagram, Odysee, VK, direct .mp4/.webm/.mov links, and local video files up to 2 GB." } },
-      { "@type": "Question", "name": "Can VideoLens download YouTube or TikTok videos directly?", "acceptedAnswer": { "@type": "Answer", "text": "No web page can download protected streams from YouTube or TikTok - their streams are technically locked and their terms restrict it. VideoLens guides you instead: use the platform's official download or offline feature, or an external open-source downloader like cobalt.tools (the app opens it in a new tab with your video URL copied). Then attach the file and it is bundled into your Offline Pack. Only download videos you have the right to save." } },
+      { "@type": "Question", "name": "Can Vidlens download YouTube or TikTok videos directly?", "acceptedAnswer": { "@type": "Answer", "text": "No web page can download protected streams from YouTube or TikTok - their streams are technically locked and their terms restrict it. Vidlens guides you instead: use the platform's official download or offline feature, or an external open-source downloader like cobalt.tools (the app opens it in a new tab with your video URL copied). Then attach the file and it is bundled into your Offline Pack. Only download videos you have the right to save." } },
       { "@type": "Question", "name": "What is the Offline Pack?", "acceptedAnswer": { "@type": "Answer", "text": "A ZIP folder containing the video (when available), an interactive offline viewer (viewer.html), your comments in JSON, CSV, TXT and SRT formats, plus the transcript. It works completely offline - unzip and open viewer.html in any browser." } },
       { "@type": "Question", "name": "What is comments.srt?", "acceptedAnswer": { "@type": "Answer", "text": "Your timestamped comments exported as a standard subtitle file. Open the video in VLC or mpv and load comments.srt as a subtitle track to see your notes displayed on top of the video at the right moments." } },
-      { "@type": "Question", "name": "Where is my data stored? Is it private?", "acceptedAnswer": { "@type": "Answer", "text": "Everything is stored locally in your browser (localStorage). VideoLens has no server, no account and no analytics. Your comments never leave your device except in the export files you download yourself." } },
-      { "@type": "Question", "name": "Can I use VideoLens for team video feedback?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Export a single-file HTML (with the video embedded for local files) or an Offline Pack ZIP and send it to anyone - they open it in a browser with no software or account needed." } },
+      { "@type": "Question", "name": "Where is my data stored? Is it private?", "acceptedAnswer": { "@type": "Answer", "text": "Everything is stored locally in your browser (localStorage). Vidlens has no server, no account and no analytics. Your comments never leave your device except in the export files you download yourself." } },
+      { "@type": "Question", "name": "Can I use Vidlens for team video feedback?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Export a single-file HTML (with the video embedded for local files) or an Offline Pack ZIP and send it to anyone - they open it in a browser with no software or account needed." } },
       { "@type": "Question", "name": "What is the maximum file size?", "acceptedAnswer": { "@type": "Answer", "text": "Local videos up to 2 GB play in the app and can be bundled in the Offline Pack. The single-file HTML export embeds video as base64 and is capped at 150 MB - use the Offline Pack for bigger files." } },
-      { "@type": "Question", "name": "Does transcription work for every video?", "acceptedAnswer": { "@type": "Answer", "text": "Live speech-to-text works for local videos in Chrome and Edge (it uses your browser's speech recognition). For platform videos, copy the platform's own transcript and use Import - VideoLens parses timestamps automatically." } },
+      { "@type": "Question", "name": "Does transcription work for every video?", "acceptedAnswer": { "@type": "Answer", "text": "Live speech-to-text works for local videos in Chrome and Edge (it uses your browser's speech recognition). For platform videos, copy the platform's own transcript and use Import - Vidlens parses timestamps automatically." } },
       { "@type": "Question", "name": "Can I export only my comments without reactions?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Untick 'Include reactions' at the top of the Export menu and every format (ZIP, HTML, PDF, CSV, JSON, TXT, SRT) will contain text comments only. You can even export a video-only pack with no comments at all." } }
     ]
   }
@@ -42,7 +56,7 @@
 
   <div class="app">
     <header class="page-header">
-      <a class="page-logo" href="./">🎬 Video<span>Lens</span></a>
+      <a class="page-logo" href="./">🎬 Vid<span>lens</span></a>
       <nav class="page-nav" aria-label="Main navigation">
         <a href="about.html">About</a>
         <a href="guide.html">How it works</a>
@@ -53,10 +67,10 @@
 
     <main class="page">
       <h1>Frequently Asked Questions</h1>
-      <p class="page-lead">Everything people ask about annotating videos and taking them offline with VideoLens.</p>
+      <p class="page-lead">Everything people ask about annotating videos and taking them offline with Vidlens.</p>
 
       <div class="faq-item">
-        <h2>Is VideoLens free?</h2>
+        <h2>Is Vidlens free?</h2>
         <p>Yes — completely free and <a href="https://github.com/VideoTag/videotag" target="_blank" rel="noopener">open source</a>. No account, no subscription, no tracking.</p>
       </div>
 
@@ -66,8 +80,8 @@
       </div>
 
       <div class="faq-item">
-        <h2>Can VideoLens download YouTube or TikTok videos directly?</h2>
-        <p>No web page can — streaming platforms lock their streams technically, and their terms restrict downloading. VideoLens guides you instead: use the platform's <strong>official download/offline feature</strong>, or an external open-source downloader like <strong>cobalt.tools</strong> (the app copies your video URL and opens it in a new tab). Then <strong>attach the file</strong> and it's bundled straight into your Offline Pack ZIP.</p>
+        <h2>Can Vidlens download YouTube or TikTok videos directly?</h2>
+        <p>No web page can — streaming platforms lock their streams technically, and their terms restrict downloading. Vidlens guides you instead: use the platform's <strong>official download/offline feature</strong>, or an external open-source downloader like <strong>cobalt.tools</strong> (the app copies your video URL and opens it in a new tab). Then <strong>attach the file</strong> and it's bundled straight into your Offline Pack ZIP.</p>
         <p><strong>Only download videos you have the right to save</strong> — your own uploads, Creative-Commons content, or where the platform permits offline copies.</p>
       </div>
 
@@ -83,7 +97,7 @@
 
       <div class="faq-item">
         <h2>Where is my data stored? Is it private?</h2>
-        <p>Locally, in your browser. VideoLens has no server, no account and no analytics — your comments never leave your device except in the export files you download yourself.</p>
+        <p>Locally, in your browser. Vidlens has no server, no account and no analytics — your comments never leave your device except in the export files you download yourself.</p>
       </div>
 
       <div class="faq-item">
@@ -111,7 +125,7 @@
 
     <footer class="footer">
       <p class="footer__text">
-        <span class="footer__logo">Video<span>Lens</span></span>
+        <span class="footer__logo">Vid<span>lens</span></span>
         — Made with ❤️ for video enthusiasts
       </p>
       <nav class="footer__nav" aria-label="Site pages">
