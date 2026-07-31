@@ -29,6 +29,8 @@ Vidlens (formerly ReactVid / VideoTAG) is a web application that lets you add ti
 - Edit and search comments; interactive timeline with clickable markers
 - Recent videos list — jump back into any video with one click
 - **Subtitles**: import .srt/.vtt (exact timings kept), extract the video's own embedded track, or **generate them from the audio with on-device Whisper AI** (WebGPU when available — audio never leaves your machine)
+- **Subtitles played back on the video** — a CC button overlays the cues on the player, in sync with playback
+- **Translation on-device** — turn the subtitles into another language (or let Whisper write them straight into English); the original is always kept and one click switches back
 - **In-page video downloader** — the downloader runs embedded inside Vidlens; grab the file and attach it without leaving the app
 - Live speech-to-text transcription (microphone) or transcript import
 - Comments exportable as **SRT subtitles** (overlay your notes on the video in VLC!)

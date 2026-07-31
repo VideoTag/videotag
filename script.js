@@ -165,7 +165,7 @@ function cacheElements() {
     'addAllTranscriptBtn', 'clearTranscriptBtn',
     'exportPDFBtn', 'exportCSVBtn', 'exportJSONBtn', 'exportTXTBtn', 'exportSRTBtn',
     'searchComments', 'recentVideos', 'recentVideosList', 'includeReactionsToggle',
-    'downloadVideoBtn', 'subtitlesBtn',
+    'downloadVideoBtn', 'subtitlesBtn', 'ccToggleBtn', 'subtitleOverlay', 'translateBtn', 'toggleOriginalBtn',
   ];
 
   ids.forEach(id => {
@@ -467,6 +467,12 @@ function updateCommentsEmptyState() {
 }
 
 function updateTranscriptEmptyState() {
+  updateCaptionAvailability();
+  const translated = transcriptionState.transcript.some(c => c.translated);
+  if (elements.toggleOriginalBtn) {
+    translated ? elements.toggleOriginalBtn.removeAttribute('hidden')
+               : elements.toggleOriginalBtn.setAttribute('hidden', '');
+  }
   const hasTranscript = transcriptionState.transcript.length > 0;
   if (elements.transcriptEmpty) {
     hasTranscript 
@@ -2012,9 +2018,13 @@ function updateTranscriptDisplay() {
     div.className = 'transcript-item';
     div.dataset.timestamp = item.timestamp;
     div.dataset.index = index;
+    const shown = (!captions.showOriginal && item.translated) ? item.translated : item.text;
+    const secondary = item.translated
+      ? `<span class="transcript-alt">${sanitizeHTML(captions.showOriginal ? item.translated : item.text)}</span>`
+      : '';
     div.innerHTML = `
       <span class="transcript-time" data-time="${item.timestamp}" title="Click to jump">[${formatTime(item.timestamp)}]</span>
-      <span class="transcript-text">${sanitizeHTML(item.text)}</span>
+      <span class="transcript-text">${sanitizeHTML(shown)}${secondary}</span>
       <button class="transcript-add-btn" title="Add as comment" data-index="${index}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       </button>
@@ -2118,7 +2128,9 @@ function exportTranscriptSRT() {
     // Use the real sub-second cue bounds when we have them (imported or AI-generated)
     const startTime = formatSRTTime(item.start ?? item.timestamp);
     const endTime = formatSRTTime(item.end ?? item.timestamp + 3);
-    srt += `${index + 1}\n${startTime} --> ${endTime}\n${item.text}\n\n`;
+    // Export whichever version is currently on screen
+    const line = (!captions.showOriginal && item.translated) ? item.translated : item.text;
+    srt += `${index + 1}\n${startTime} --> ${endTime}\n${line}\n\n`;
   });
   
   downloadFile(srt, `${state.videoTitle}_transcript.srt`, 'text/plain');
@@ -2448,7 +2460,7 @@ async function releaseAsrPipeline() {
   ASR.announced = false;
 }
 
-async function generateSubtitlesFromAudio(modelKey, language, ui, range = null) {
+async function generateSubtitlesFromAudio(modelKey, language, ui, range = null, translateToEnglish = false) {
   const { setStage, setProgress, onCues, shouldStop } = ui;
 
   setStage('Loading the speech model…');
@@ -2530,7 +2542,7 @@ async function generateSubtitlesFromAudio(modelKey, language, ui, range = null) 
       output = await ASR.pipe(slice, {
       return_timestamps: true,
       language: language === 'auto' ? undefined : language,
-      task: 'transcribe',
+      task: translateToEnglish ? 'translate' : 'transcribe',
       // Greedy decoding only. n-gram/repetition penalties also punish the
       // repeating timestamp tokens, which makes Whisper stop after a few
       // words — loops are handled afterwards in cleanCues() instead.
@@ -2701,6 +2713,181 @@ function showTranscribeProgressModal(onCancel) {
   };
 }
 
+// ============================================
+// 15d. TRANSLATION (on-device)
+// ============================================
+
+// Small, focused models — a few tens of MB per pair, versus ~600 MB for a
+// single multilingual one. Whisper covers "anything → English" for free.
+const MT_PAIRS = {
+  'fr>en': 'Xenova/opus-mt-fr-en', 'en>fr': 'Xenova/opus-mt-en-fr',
+  'es>en': 'Xenova/opus-mt-es-en', 'en>es': 'Xenova/opus-mt-en-es',
+  'de>en': 'Xenova/opus-mt-de-en', 'en>de': 'Xenova/opus-mt-en-de',
+  'it>en': 'Xenova/opus-mt-it-en', 'en>it': 'Xenova/opus-mt-en-it',
+  'ru>en': 'Xenova/opus-mt-ru-en', 'en>ru': 'Xenova/opus-mt-en-ru',
+  'zh>en': 'Xenova/opus-mt-zh-en', 'en>zh': 'Xenova/opus-mt-en-zh',
+  'nl>en': 'Xenova/opus-mt-nl-en', 'en>nl': 'Xenova/opus-mt-en-nl',
+  'ar>en': 'Xenova/opus-mt-ar-en', 'en>ar': 'Xenova/opus-mt-en-ar',
+};
+
+const MT_LANGS = {
+  en: 'English', fr: 'French', es: 'Spanish', de: 'German',
+  it: 'Italian', ru: 'Russian', zh: 'Chinese', nl: 'Dutch', ar: 'Arabic',
+};
+
+const MT = { pipe: null, key: null };
+
+async function releaseTranslator() {
+  try {
+    await MT.pipe?.dispose?.();
+  } catch {}
+  MT.pipe = null;
+  MT.key = null;
+}
+
+async function translateTranscript(sourceLang, targetLang, ui) {
+  const key = `${sourceLang}>${targetLang}`;
+  const modelId = MT_PAIRS[key];
+  if (!modelId) throw new Error(`No on-device model for ${MT_LANGS[sourceLang]} → ${MT_LANGS[targetLang]} yet`);
+
+  const transformers = await import(ASR.LIB);
+
+  if (MT.key !== key) {
+    await releaseTranslator();
+    ui.setStage(`Loading the ${MT_LANGS[sourceLang]} → ${MT_LANGS[targetLang]} model…`);
+    MT.pipe = await transformers.pipeline('translation', modelId, {
+      dtype: 'q8',
+      device: 'wasm',            // these models are tiny; CPU avoids GPU pressure
+      progress_callback: (p) => {
+        if (p.status === 'progress' && p.total) {
+          ui.setProgress((p.loaded / p.total) * 100, `Loading — ${formatFileSize(p.loaded)} / ${formatFileSize(p.total)}`);
+        }
+      },
+    });
+    MT.key = key;
+  }
+
+  const cues = transcriptionState.transcript;
+  ui.setStage(`Translating ${cues.length} cues into ${MT_LANGS[targetLang]}…`);
+
+  for (let i = 0; i < cues.length; i++) {
+    if (ui.shouldStop?.()) break;
+    const cue = cues[i];
+    if (!cue.text?.trim()) continue;
+
+    try {
+      const output = await MT.pipe(cue.text, { max_new_tokens: 220 });
+      const text = Array.isArray(output) ? output[0]?.translation_text : output?.translation_text;
+      if (text) cue.translated = collapseRepeats(text.trim());
+    } catch (error) {
+      console.warn(`Translation failed on cue ${i}:`, error?.message);
+    }
+
+    ui.setProgress(((i + 1) / cues.length) * 100, `${i + 1} / ${cues.length}`);
+    ui.addCues?.([{ start: cue.start ?? cue.timestamp, text: cue.translated || cue.text }]);
+    await new Promise(resolve => setTimeout(resolve, 0));   // keep the UI alive
+  }
+
+  return cues.filter(c => c.translated).length;
+}
+
+function showTranslateModal() {
+  if (!transcriptionState.transcript.length) {
+    showToast('Generate or import subtitles first', 'info');
+    return;
+  }
+  $('#translateModal')?.remove();
+
+  const guess = (defaultAsrLanguage() || 'english').slice(0, 2);
+  const sourceGuess = Object.keys(MT_LANGS).find(code => MT_LANGS[code].toLowerCase().startsWith(guess)) || 'fr';
+  const options = (selected) => Object.entries(MT_LANGS)
+    .map(([code, name]) => `<option value="${code}"${code === selected ? ' selected' : ''}>${name}</option>`).join('');
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'translateModal';
+  modal.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="trTitle">
+      <div class="modal__header">
+        <div class="modal__title-wrapper">
+          <span class="modal__emoji">🌍</span>
+          <h3 class="modal__title" id="trTitle">Translate subtitles</h3>
+        </div>
+        <button class="modal__close" id="trClose" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal__body">
+        <p class="sub-lead">${transcriptionState.transcript.length} cues. Translation runs <strong>on your device</strong> — nothing is sent anywhere. The original text is kept, so you can switch back any time.</p>
+        <div class="sub-controls">
+          <label>From <select id="trFrom">${options(sourceGuess)}</select></label>
+          <label>To <select id="trTo">${options('en')}</select></label>
+        </div>
+        <p class="sub-tip">Pairs to and from English are supported (a small model per pair, tens of MB). For other combinations, translate to English first.</p>
+        <div class="sub-progress" id="trProgress" hidden>
+          <p class="sub-stage" id="trStage"></p>
+          <div class="sub-bar"><div class="sub-bar__fill" id="trBar"></div></div>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn btn--ghost" id="trCancel">Cancel</button>
+        <button class="btn btn--primary" id="trGo">🌍 Translate</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  document.body.style.overflow = 'hidden';
+
+  const close = () => {
+    modal.remove();
+    document.body.style.overflow = '';
+  };
+  modal.querySelector('#trClose').addEventListener('click', close);
+  modal.querySelector('#trCancel').addEventListener('click', close);
+
+  modal.querySelector('#trGo').addEventListener('click', async () => {
+    const from = modal.querySelector('#trFrom').value;
+    const to = modal.querySelector('#trTo').value;
+
+    if (from === to) {
+      showToast('Pick two different languages', 'info');
+      return;
+    }
+
+    const button = modal.querySelector('#trGo');
+    const progress = modal.querySelector('#trProgress');
+    button.disabled = true;
+    progress.hidden = false;
+
+    const ui = {
+      setStage: (t) => { modal.querySelector('#trStage').textContent = t; },
+      setProgress: (pct, detail) => {
+        modal.querySelector('#trBar').style.width = `${Math.min(pct, 100)}%`;
+        if (detail) modal.querySelector('#trStage').textContent = detail;
+      },
+      shouldStop: () => false,
+    };
+
+    try {
+      const count = await translateTranscript(from, to, ui);
+      captions.showOriginal = false;
+      updateTranscriptDisplay();
+      saveTranscript();
+      close();
+      showToast(`Translated ${count} cues into ${MT_LANGS[to]} — the original is kept`, 'success');
+    } catch (error) {
+      console.error('Translation failed:', error);
+      showToast(`Could not translate: ${error.message}`, 'error');
+      button.disabled = false;
+      progress.hidden = true;
+    }
+  });
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) close();
+  });
+}
+
 function showSubtitleModal() {
   $('#subtitleModal')?.remove();
 
@@ -2743,6 +2930,7 @@ function showSubtitleModal() {
         </label>
       </div>
       <p class="sub-tip">For anything other than English, <strong>Small</strong> is markedly more accurate than Tiny.</p>
+      <label class="sub-check"><input type="checkbox" id="subTranslateEn"> Write the subtitles in <strong>English</strong> instead of the spoken language <span class="sub-hint">free — no extra model</span></label>
       <div class="sub-range">
         <label>From <input type="text" id="subFrom" value="0:00" size="6" inputmode="numeric"></label>
         <label>To <input type="text" id="subTo" value="${formatTime(state.videoDuration || 0)}" size="6" inputmode="numeric"></label>
@@ -2895,6 +3083,7 @@ function showSubtitleModal() {
   modal.querySelector('#subGenerate')?.addEventListener('click', async () => {
     const modelKey = modal.querySelector('#subModel').value;
     const language = modal.querySelector('#subLang').value;
+    const translateToEnglish = modal.querySelector('#subTranslateEn')?.checked;
     const picked = readRange();
     const whole = picked.start <= 0 && picked.end >= (state.videoDuration || 0) - 1;
     const range = whole ? null : picked;
@@ -2909,7 +3098,7 @@ function showSubtitleModal() {
         setProgress: ui.setProgress,
         onCues: (fresh) => ui.addCues(fresh),
         shouldStop: () => stopped,
-      }, range);
+      }, range, translateToEnglish);
 
       ui.close();
 
@@ -2991,6 +3180,93 @@ function showSubtitleSuccess(count, wasStopped) {
 // ============================================
 // 16. TIMELINE & STATS
 // ============================================
+
+// ============================================
+// 15c. SUBTITLES ON THE PLAYER
+// ============================================
+
+const captions = { on: false, raf: null, lastIndex: -1, showOriginal: false };
+
+function cueTextFor(cue) {
+  if (!cue) return '';
+  return (!captions.showOriginal && cue.translated) ? cue.translated : cue.text;
+}
+
+// Cues are sorted, so walk from the last hit instead of scanning every frame
+function findCueAt(time) {
+  const list = transcriptionState.transcript;
+  if (!list.length) return null;
+
+  const hit = (cue) => cue && time >= (cue.start ?? cue.timestamp) &&
+    time < (cue.end ?? (cue.start ?? cue.timestamp) + 3);
+
+  if (hit(list[captions.lastIndex])) return list[captions.lastIndex];
+  if (hit(list[captions.lastIndex + 1])) {
+    captions.lastIndex += 1;
+    return list[captions.lastIndex];
+  }
+
+  let lo = 0, hi = list.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const cue = list[mid];
+    const start = cue.start ?? cue.timestamp;
+    const end = cue.end ?? start + 3;
+    if (time < start) hi = mid - 1;
+    else if (time >= end) lo = mid + 1;
+    else { captions.lastIndex = mid; return cue; }
+  }
+  return null;
+}
+
+function paintCaption() {
+  if (!captions.on) return;
+  const overlay = elements.subtitleOverlay;
+  if (overlay) {
+    const cue = findCueAt(getCurrentTime());
+    const text = cueTextFor(cue);
+    if (overlay.dataset.text !== text) {
+      overlay.dataset.text = text;
+      overlay.innerHTML = text ? `<span>${sanitizeHTML(text)}</span>` : '';
+    }
+  }
+  captions.raf = requestAnimationFrame(paintCaption);
+}
+
+function setCaptions(on) {
+  captions.on = on;
+  captions.lastIndex = -1;
+  cancelAnimationFrame(captions.raf);
+
+  const overlay = elements.subtitleOverlay;
+  const button = elements.ccToggleBtn;
+
+  if (on) {
+    overlay?.removeAttribute('hidden');
+    button?.classList.add('btn--active');
+    paintCaption();
+  } else {
+    overlay?.setAttribute('hidden', '');
+    if (overlay) {
+      overlay.innerHTML = '';
+      delete overlay.dataset.text;
+    }
+    button?.classList.remove('btn--active');
+  }
+}
+
+// The CC button only makes sense once there is something to show
+function updateCaptionAvailability() {
+  const has = transcriptionState.transcript.length > 0;
+  if (!elements.ccToggleBtn) return;
+
+  if (has) {
+    elements.ccToggleBtn.removeAttribute('hidden');
+  } else {
+    elements.ccToggleBtn.setAttribute('hidden', '');
+    if (captions.on) setCaptions(false);
+  }
+}
 
 function startTimelineUpdates() {
   if (state.timelineInterval) clearInterval(state.timelineInterval);
@@ -4517,7 +4793,8 @@ async function exportZIP() {
       const sorted = [...transcriptionState.transcript].sort((a, b) => a.timestamp - b.timestamp);
       let srt = '';
       sorted.forEach((item, index) => {
-        srt += `${index + 1}\n${formatSRTTime(item.start ?? item.timestamp)} --> ${formatSRTTime(item.end ?? item.timestamp + 3)}\n${item.text}\n\n`;
+        const line = (!captions.showOriginal && item.translated) ? item.translated : item.text;
+        srt += `${index + 1}\n${formatSRTTime(item.start ?? item.timestamp)} --> ${formatSRTTime(item.end ?? item.timestamp + 3)}\n${line}\n\n`;
       });
       folder.file('transcript.srt', srt);
     }
@@ -5566,6 +5843,24 @@ function initEventListeners() {
   elements.clearTranscriptBtn?.addEventListener('click', clearTranscript);
   elements.addAllTranscriptBtn?.addEventListener('click', addAllTranscriptAsComments);
   elements.importTranscriptBtn?.addEventListener('click', showManualTranscriptModal);
+  elements.translateBtn?.addEventListener('click', showTranslateModal);
+
+  elements.toggleOriginalBtn?.addEventListener('click', () => {
+    captions.showOriginal = !captions.showOriginal;
+    elements.toggleOriginalBtn.querySelector('span').textContent = captions.showOriginal ? 'Translation' : 'Original';
+    updateTranscriptDisplay();
+    showToast(captions.showOriginal ? 'Showing the original text' : 'Showing the translation', 'info');
+  });
+
+  elements.ccToggleBtn?.addEventListener('click', () => {
+    if (!transcriptionState.transcript.length) {
+      showToast('Generate or import subtitles first', 'info');
+      return;
+    }
+    setCaptions(!captions.on);
+    showToast(captions.on ? 'Subtitles on' : 'Subtitles off', 'info');
+  });
+
   elements.subtitlesBtn?.addEventListener('click', () => {
     if (!state.videoLoaded) {
       showToast('Please load a video first', 'error');

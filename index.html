@@ -251,7 +251,10 @@
           </button>
         </div>
         
-        <div class="video-container" id="videoContainer"></div>
+        <div class="video-stage">
+          <div class="video-container" id="videoContainer"></div>
+          <div class="subtitle-overlay" id="subtitleOverlay" hidden aria-live="polite"></div>
+        </div>
         
         <!-- Reactions Bar -->
         <div class="reactions-bar" id="reactionButtons">
@@ -271,6 +274,10 @@
             <button class="emoji-btn" data-emoji="🎯" title="On Point"><span>🎯</span></button>
             <button class="emoji-btn" data-emoji="❓" title="Question"><span>❓</span></button>
             <div class="reactions-bar__divider"></div>
+            <button class="btn btn--secondary btn--sm" id="ccToggleBtn" title="Show subtitles on the video" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M7 12.5a2 2 0 1 0 0-1"/><path d="M15 12.5a2 2 0 1 0 0-1"/></svg>
+              <span>CC</span>
+            </button>
             <button class="btn btn--secondary btn--sm" id="transcribeBtn" title="Generate subtitles with on-device AI, import a file, or use the video's own track">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="2" y="5" width="20" height="14" rx="2"/>
@@ -434,6 +441,13 @@
             <button class="btn btn--secondary btn--sm" id="subtitlesBtn" title="Get or generate subtitles">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="6" y1="15" x2="10" y2="15"/><line x1="14" y1="15" x2="18" y2="15"/><line x1="6" y1="11" x2="18" y2="11"/></svg>
               <span>Subtitles</span>
+            </button>
+            <button class="btn btn--ghost btn--sm" id="translateBtn" title="Translate the subtitles on your device">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              <span>Translate</span>
+            </button>
+            <button class="btn btn--ghost btn--sm" id="toggleOriginalBtn" title="Switch between the original and the translation" hidden>
+              <span>Original</span>
             </button>
             <button class="btn btn--ghost btn--sm" id="importTranscriptBtn" title="Import transcript">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
