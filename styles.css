@@ -3261,3 +3261,14 @@ body {
 .sub-warn { color: var(--color-accent-yellow); }
 
 #subFreeMem { margin-left: var(--space-2); }
+
+.btn__badge {
+  padding: 1px 6px;
+  background: rgba(16, 185, 129, 0.18);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: var(--radius-full);
+  color: var(--color-accent-green);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}

@@ -1833,12 +1833,13 @@ function updateTranscribeButton(isActive) {
   } else {
     btn.innerHTML = `
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-        <line x1="12" y1="19" x2="12" y2="23"/>
-        <line x1="8" y1="23" x2="16" y2="23"/>
+        <rect x="2" y="5" width="20" height="14" rx="2"/>
+        <line x1="6" y1="15" x2="10" y2="15"/>
+        <line x1="14" y1="15" x2="18" y2="15"/>
+        <line x1="6" y1="11" x2="18" y2="11"/>
       </svg>
       <span>Transcribe</span>
+      <span class="btn__badge">AI</span>
     `;
   }
 }
@@ -2768,6 +2769,12 @@ function showSubtitleModal() {
       <h4>🎬 Use the video's own track</h4>
       <p>If the loaded file already carries a subtitle track, pull its cues straight out.</p>
       <button class="btn btn--secondary btn--sm" id="subEmbedded">Extract embedded track</button>
+    </div>
+
+    <div class="sub-option">
+      <h4>🎤 Live from the microphone</h4>
+      <p>Dictate as the video plays, or capture a room. Uses the browser's speech engine — handy for quick notes, far less accurate than the AI option above.</p>
+      <button class="btn btn--secondary btn--sm" id="subLive">${transcriptionState.isTranscribing ? 'Stop listening' : 'Start listening'}</button>
     </div>`;
 
   const modal = document.createElement('div');
@@ -2812,6 +2819,11 @@ function showSubtitleModal() {
       importSubtitleFile(file);
       close();
     }
+  });
+
+  modal.querySelector('#subLive')?.addEventListener('click', () => {
+    close();
+    toggleTranscription();
   });
 
   modal.querySelector('#subEmbedded').addEventListener('click', () => {
@@ -5539,7 +5551,13 @@ function initEventListeners() {
       showToast('Please load a video first', 'error');
       return;
     }
-    toggleTranscription();
+    // While the microphone path is running, this button stops it
+    if (transcriptionState.isTranscribing) {
+      stopTranscription();
+      return;
+    }
+    // Otherwise: AI subtitles, import, or the video's own track
+    showSubtitleModal();
   });
   
   // Transcript actions
