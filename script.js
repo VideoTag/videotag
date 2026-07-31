@@ -522,6 +522,102 @@ function hideModal(modalElement) {
   document.body.style.overflow = '';
 }
 
+// Shared voice recorder strip, injected into the comment & reaction modals
+function mountVoiceRecorder(modal, textarea) {
+  modal.querySelector('.voice-rec')?.remove();
+  resetVoiceRecorder();
+
+  const strip = document.createElement('div');
+  strip.className = 'voice-rec';
+  strip.innerHTML = `
+    <button type="button" class="voice-rec__btn" id="voiceRecBtn">
+      <span class="voice-rec__dot"></span>
+      <span id="voiceRecLabel">Record a voice note</span>
+    </button>
+    <span class="voice-rec__timer" id="voiceRecTimer" hidden>0:00</span>
+    <span class="voice-rec__status" id="voiceRecStatus"></span>
+    <div class="voice-rec__preview" id="voiceRecPreview" hidden>
+      <audio id="voiceRecAudio" controls></audio>
+      <button type="button" class="voice-rec__discard" id="voiceRecDiscard" title="Discard the recording">✕</button>
+    </div>
+  `;
+
+  const body = modal.querySelector('.modal__body');
+  body?.appendChild(strip);
+
+  const button = strip.querySelector('#voiceRecBtn');
+  const label = strip.querySelector('#voiceRecLabel');
+  const timer = strip.querySelector('#voiceRecTimer');
+  const status = strip.querySelector('#voiceRecStatus');
+  const preview = strip.querySelector('#voiceRecPreview');
+  const audioEl = strip.querySelector('#voiceRecAudio');
+
+  strip.querySelector('#voiceRecDiscard').addEventListener('click', () => {
+    resetVoiceRecorder();
+    preview.hidden = true;
+    audioEl.removeAttribute('src');
+    status.textContent = '';
+    button.hidden = false;
+  });
+
+  button.addEventListener('click', async () => {
+    // Stop an in-progress recording
+    if (voiceRecorder.media && voiceRecorder.media.state === 'recording') {
+      button.classList.remove('voice-rec__btn--on');
+      label.textContent = 'Record a voice note';
+      timer.hidden = true;
+
+      const blob = await stopVoiceRecording();
+      if (!blob || !blob.size) {
+        status.textContent = 'Nothing was recorded';
+        return;
+      }
+
+      audioEl.src = URL.createObjectURL(blob);
+      preview.hidden = false;
+      button.hidden = true;
+
+      // Keep the sound AND write the transcript
+      status.textContent = '⏳ Transcribing on your device…';
+      try {
+        const text = await transcribeVoiceClip(blob, (s) => { status.textContent = `⏳ ${s}`; });
+        if (text) {
+          textarea.value = textarea.value.trim() ? `${textarea.value.trim()} ${text}` : text;
+          textarea.dispatchEvent(new Event('input'));
+          status.textContent = '✓ Audio kept + transcribed (edit the text if needed)';
+        } else {
+          status.textContent = '✓ Audio kept — no speech recognised, type a note if you like';
+        }
+      } catch (error) {
+        console.warn('Voice transcription failed:', error);
+        status.textContent = '✓ Audio kept — transcription unavailable, type a note instead';
+      }
+      return;
+    }
+
+    // Start recording
+    try {
+      status.textContent = '';
+      await startVoiceRecording((seconds) => { timer.textContent = formatTime(seconds); });
+      button.classList.add('voice-rec__btn--on');
+      label.textContent = 'Stop recording';
+      timer.hidden = false;
+    } catch (error) {
+      console.warn('Microphone unavailable:', error);
+      status.textContent = 'Microphone access was denied';
+    }
+  });
+}
+
+// Persist the recorded clip against the freshly created comment
+async function attachRecordedVoice(commentId) {
+  if (!voiceRecorder.blob) return null;
+  const meta = { mime: voiceRecorder.blob.type || 'audio/webm', duration: Math.round(voiceRecorder.duration) };
+  await saveVoiceClip(commentId, voiceRecorder.blob);
+  resetVoiceRecorder();
+  return meta;
+}
+
 function showReactionModal(emoji) {
   if (elements.selectedEmoji) elements.selectedEmoji.textContent = emoji;
   if (elements.selectedEmojiInput) elements.selectedEmojiInput.value = emoji;
@@ -529,6 +625,7 @@ function showReactionModal(emoji) {
   if (elements.charCount) elements.charCount.textContent = '0';
   if (elements.modalTimestamp) elements.modalTimestamp.textContent = formatTime(getCurrentTime());
   
+  mountVoiceRecorder(elements.reactionModal, elements.reactionText);
   showModal(elements.reactionModal);
   elements.reactionText?.focus();
 }
@@ -547,6 +644,7 @@ function showCommentModal(prefillText = '', prefillTimestamp = null) {
     elements.commentModal.dataset.prefillTimestamp = timestamp;
   }
   
+  mountVoiceRecorder(elements.commentModal, elements.commentText);
   showModal(elements.commentModal);
   elements.commentText?.focus();
 }
@@ -1185,6 +1283,163 @@ async function initializePlayer(videoId) {
 // 14. COMMENTS & REACTIONS
 // ============================================
 
+// ============================================
+// 14a. VOICE NOTES (audio kept + transcribed)
+// ============================================
+
+const VOICE_DB = 'vidlens_voice';
+const VOICE_STORE = 'clips';
+
+function openVoiceDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(VOICE_DB, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(VOICE_STORE)) {
+        db.createObjectStore(VOICE_STORE);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function voiceTx(mode, run) {
+  try {
+    const db = await openVoiceDB();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(VOICE_STORE, mode);
+      const store = tx.objectStore(VOICE_STORE);
+      const request = run(store);
+      tx.oncomplete = () => resolve(request?.result);
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (error) {
+    console.warn('Voice storage unavailable:', error?.message);
+    return null;
+  }
+}
+
+const voiceKey = (commentId) => `${state.currentVideoId}::${commentId}`;
+
+const saveVoiceClip = (commentId, blob) => voiceTx('readwrite', s => s.put(blob, voiceKey(commentId)));
+const loadVoiceClip = (commentId) => voiceTx('readonly', s => s.get(voiceKey(commentId)));
+const deleteVoiceClip = (commentId) => voiceTx('readwrite', s => s.delete(voiceKey(commentId)));
+
+async function deleteAllVoiceClips() {
+  const prefix = `${state.currentVideoId}::`;
+  await voiceTx('readwrite', (store) => {
+    const cursorRequest = store.openCursor();
+    cursorRequest.onsuccess = () => {
+      const cursor = cursorRequest.result;
+      if (!cursor) return;
+      if (String(cursor.key).startsWith(prefix)) cursor.delete();
+      cursor.continue();
+    };
+    return cursorRequest;
+  });
+}
+
+// --- Recorder ---
+const voiceRecorder = {
+  media: null,
+  stream: null,
+  chunks: [],
+  startedAt: 0,
+  timer: null,
+  blob: null,
+  duration: 0,
+};
+
+function resetVoiceRecorder() {
+  clearInterval(voiceRecorder.timer);
+  voiceRecorder.stream?.getTracks().forEach(t => t.stop());
+  Object.assign(voiceRecorder, {
+    media: null, stream: null, chunks: [], startedAt: 0, timer: null, blob: null, duration: 0,
+  });
+}
+
+function pickRecorderMime() {
+  const options = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+  return options.find(m => window.MediaRecorder?.isTypeSupported?.(m)) || '';
+}
+
+async function startVoiceRecording(onTick) {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const mimeType = pickRecorderMime();
+  const media = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+
+  voiceRecorder.stream = stream;
+  voiceRecorder.media = media;
+  voiceRecorder.chunks = [];
+  voiceRecorder.startedAt = Date.now();
+
+  media.ondataavailable = (e) => {
+    if (e.data.size) voiceRecorder.chunks.push(e.data);
+  };
+  media.start();
+
+  voiceRecorder.timer = setInterval(() => {
+    onTick?.((Date.now() - voiceRecorder.startedAt) / 1000);
+  }, 200);
+
+  return media;
+}
+
+function stopVoiceRecording() {
+  return new Promise((resolve) => {
+    const media = voiceRecorder.media;
+    if (!media || media.state === 'inactive') return resolve(null);
+
+    media.onstop = () => {
+      clearInterval(voiceRecorder.timer);
+      const blob = new Blob(voiceRecorder.chunks, { type: media.mimeType || 'audio/webm' });
+      voiceRecorder.blob = blob;
+      voiceRecorder.duration = (Date.now() - voiceRecorder.startedAt) / 1000;
+      voiceRecorder.stream?.getTracks().forEach(t => t.stop());
+      resolve(blob);
+    };
+    media.stop();
+  });
+}
+
+// Transcribe a short clip with the same on-device Whisper pipeline
+async function transcribeVoiceClip(blob, onStage) {
+  const transformers = await import(ASR.LIB);
+  const modelKey = 'tiny';   // clips are short — speed matters more here
+
+  if (ASR.pipeKey !== modelKey) {
+    onStage?.('Loading the speech model…');
+    ASR.pipe = await transformers.pipeline('automatic-speech-recognition', ASR.MODELS[modelKey].id, {
+      dtype: navigator.gpu ? { encoder_model: 'fp32', decoder_model_merged: 'q4' } : 'q8',
+      device: navigator.gpu ? 'webgpu' : 'wasm',
+    });
+    ASR.pipeKey = modelKey;
+  }
+
+  onStage?.('Transcribing your note…');
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const decoded = await ctx.decodeAudioData(await blob.arrayBuffer());
+  ctx.close();
+
+  const offline = new OfflineAudioContext(1, Math.ceil(decoded.duration * 16000), 16000);
+  const source = offline.createBufferSource();
+  source.buffer = decoded;
+  source.connect(offline.destination);
+  source.start();
+  const rendered = await offline.startRendering();
+
+  const output = await ASR.pipe(rendered.getChannelData(0), {
+    language: defaultAsrLanguage(),
+    task: 'transcribe',
+    temperature: 0,
+    do_sample: false,
+    max_new_tokens: 200,
+  });
+
+  return collapseRepeats((output.text || '').trim());
+}
+
 function getCommentPlainText(commentEl) {
   const textEl = commentEl.querySelector('.comment-text');
   if (!textEl) return '';
@@ -1193,10 +1448,16 @@ function getCommentPlainText(commentEl) {
   return clone.textContent.trim();
 }
 
-function addComment({ text, timestamp, type = 'comment', emoji = null }) {
+function addComment({ text, timestamp, type = 'comment', emoji = null, id = null, voice = null }) {
   const comment = document.createElement('div');
   comment.className = `comment ${type === 'reaction' ? 'reaction' : ''}`;
   comment.dataset.timestamp = timestamp;
+  comment.dataset.id = id || `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+
+  if (voice) {
+    comment.dataset.voice = JSON.stringify(voice);
+    comment.classList.add('comment--voice');
+  }
 
   const timeStr = formatTime(timestamp);
   let content = sanitizeHTML(text);
@@ -1205,10 +1466,19 @@ function addComment({ text, timestamp, type = 'comment', emoji = null }) {
     content = `<span class="reaction-emoji">${emoji}</span>${content}`;
   }
 
+  const voiceUI = voice ? `
+      <div class="voice-note">
+        <button class="voice-note__play" title="Play voice note" aria-label="Play voice note">▶</button>
+        <span class="voice-note__wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="voice-note__time">${formatTime(voice.duration || 0)}</span>
+        <span class="voice-note__tag" title="Transcribed on your device">transcript</span>
+      </div>` : '';
+
   comment.innerHTML = `
     <span class="timestamp" data-time="${timestamp}" title="Click to jump to ${timeStr}">[${timeStr}]</span>
     <div class="comment-content">
       <span class="comment-text">${content}</span>
+      ${voiceUI}
     </div>
     <button class="comment-edit" title="Edit">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -1221,11 +1491,49 @@ function addComment({ text, timestamp, type = 'comment', emoji = null }) {
   // Add delete handler
   comment.querySelector('.comment-delete')?.addEventListener('click', (e) => {
     e.stopPropagation();
+    if (comment.dataset.voice) deleteVoiceClip(comment.dataset.id);
     comment.remove();
     saveComments();
     updateCommentsEmptyState();
     updateUI();
     showToast('Comment deleted');
+  });
+
+  // Play the recorded audio back
+  comment.querySelector('.voice-note__play')?.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const button = e.currentTarget;
+    const note = button.closest('.voice-note');
+
+    if (note.dataset.playing === '1') {
+      note._audio?.pause();
+      return;
+    }
+
+    const blob = await loadVoiceClip(comment.dataset.id);
+    if (!blob) {
+      showToast('The audio for this note is no longer stored on this device', 'error');
+      return;
+    }
+
+    const audio = new Audio(URL.createObjectURL(blob));
+    note._audio = audio;
+    note.dataset.playing = '1';
+    button.textContent = '⏸';
+    note.classList.add('voice-note--playing');
+
+    const finish = () => {
+      note.dataset.playing = '0';
+      button.textContent = '▶';
+      note.classList.remove('voice-note--playing');
+      URL.revokeObjectURL(audio.src);
+    };
+    audio.addEventListener('ended', finish);
+    audio.addEventListener('pause', finish);
+    audio.play().catch(() => {
+      finish();
+      showToast('Could not play the audio', 'error');
+    });
   });
 
   // Edit handler — reuses the comment modal in edit mode
@@ -1252,10 +1560,12 @@ function saveComments() {
     const emojiEl = c.querySelector('.reaction-emoji');
 
     return {
+      id: c.dataset.id,
       text: getCommentPlainText(c),
       timestamp: parseInt(c.dataset.timestamp) || 0,
       type: isReaction ? 'reaction' : 'comment',
       emoji: emojiEl?.textContent || null,
+      voice: c.dataset.voice ? JSON.parse(c.dataset.voice) : null,
     };
   });
   
@@ -1288,6 +1598,7 @@ function loadComments(videoId) {
 
 function clearAllComments() {
   showConfirmModal('Are you sure you want to delete all comments and reactions?', () => {
+    deleteAllVoiceClips();
     elements.commentsList.innerHTML = '';
     saveComments();
     updateCommentsEmptyState();
@@ -2601,11 +2912,13 @@ function updateUI() {
 
 function getCommentsData() {
   const items = Array.from(elements.commentsList?.children || []).map(c => ({
+    id: c.dataset.id || null,
     timestamp: parseInt(c.dataset.timestamp) || 0,
     time: formatTime(parseInt(c.dataset.timestamp) || 0),
     type: c.classList.contains('reaction') ? 'reaction' : 'comment',
     emoji: c.querySelector('.reaction-emoji')?.textContent || null,
     text: getCommentPlainText(c),
+    voice: c.dataset.voice ? JSON.parse(c.dataset.voice) : null,
   }));
 
   // "Include reactions" export toggle — off means text comments only
@@ -2841,8 +3154,25 @@ function getDownloadRoutes(watchUrl, providerName) {
   ];
 }
 
+// Cache of commentId → data URL, used to inline audio in the HTML report
+const voiceDataUrls = new Map();
+
+async function inlineVoiceNotes() {
+  const withVoice = getCommentsData().filter(d => d.voice && d.id);
+  for (const item of withVoice) {
+    if (voiceDataUrls.has(item.id)) continue;
+    const blob = await loadVoiceClip(item.id);
+    if (!blob) continue;
+    voiceDataUrls.set(item.id, await fileToBase64(blob));
+  }
+}
+
 function buildReportPayload() {
   const { embedUrl, seekTemplate } = getSeekableEmbedInfo();
+  // attach the inlined audio so each note plays straight from the file
+  const comments = getCommentsData().map(c => (
+    c.voice && voiceDataUrls.has(c.id) ? { ...c, voiceData: voiceDataUrls.get(c.id) } : c
+  ));
   return {
     title: state.videoTitle,
     author: state.videoAuthor,
@@ -2853,7 +3183,7 @@ function buildReportPayload() {
     seekTemplate: seekTemplate,
     duration: state.videoDuration,
     exportDate: new Date().toISOString(),
-    comments: getCommentsData(),
+    comments,
     transcript: [...transcriptionState.transcript].sort((a, b) => a.timestamp - b.timestamp),
     directUrl: state.currentProvider === 'direct' ? state.originalVideoUrl : null,
   };
@@ -2959,6 +3289,7 @@ function generateReportHTML(embeddedVideo = null, thumbDataUrl = null) {
   .ts { padding: 0.25rem 0.55rem; background: linear-gradient(135deg, var(--primary), var(--secondary)); border-radius: 6px; font-family: Consolas, monospace; font-size: 0.72rem; font-weight: 600; color: #fff; flex-shrink: 0; align-self: flex-start; border: none; cursor: pointer; }
   .txt { flex: 1; color: var(--text-2); font-size: 0.87rem; word-break: break-word; }
   .emo { font-size: 1.05rem; margin-right: 0.35rem; }
+  .voice { display: block; width: 100%; max-width: 320px; height: 34px; margin-top: 0.5rem; }
   .empty { text-align: center; color: var(--muted); padding: 1.5rem; font-size: 0.85rem; }
   .tline { display: flex; gap: 0.5rem; padding: 0.4rem 0.7rem; background: var(--surface-2); border-radius: 8px; font-size: 0.82rem; cursor: pointer; }
   .tline:hover { background: var(--surface-3); }
@@ -3357,7 +3688,9 @@ function render() {
     row.className = 'item' + (c.type === 'reaction' ? ' reaction' : '');
     row.setAttribute('data-t', c.timestamp);
     row.innerHTML = '<button class="ts">[' + c.time + ']</button><span class="txt">' +
-      (c.emoji ? '<span class="emo">' + c.emoji + '</span>' : '') + esc(c.text) + '</span>';
+      (c.emoji ? '<span class="emo">' + c.emoji + '</span>' : '') + esc(c.text) +
+      (c.voiceData ? '<audio class="voice" controls preload="none" src="' + c.voiceData + '"></audio>' : '') +
+      '</span>';
     row.addEventListener('click', function () { seek(c.timestamp); });
     box.appendChild(row);
   });
@@ -3415,6 +3748,9 @@ async function exportHTML() {
   }
 
   const isLocalVideo = state.currentProvider === 'upload' && state.uploadedVideo;
+
+  // Voice notes ride along inside the file, so the report stays self-contained
+  await inlineVoiceNotes();
 
   // Inline the poster so the report still looks right with no network
   let thumbDataUrl = null;
@@ -3908,6 +4244,19 @@ async function exportZIP() {
       }
     }
 
+    // Voice notes: the recordings travel with the pack
+    const voiceItems = data.filter(d => d.voice && d.id);
+    if (voiceItems.length) {
+      showToast(`Adding ${voiceItems.length} voice note${voiceItems.length > 1 ? 's' : ''}…`, 'info');
+      for (const item of voiceItems) {
+        const blob = await loadVoiceClip(item.id);
+        if (!blob) continue;
+        const ext = (item.voice.mime || '').includes('mp4') ? 'm4a' : (item.voice.mime || '').includes('ogg') ? 'ogg' : 'webm';
+        item.voiceFile = `voice/${item.id}.${ext}`;
+        folder.file(item.voiceFile, blob, { compression: 'STORE' });
+      }
+    }
+
     // Interactive offline viewer
     folder.file('viewer.html', generateOfflineViewerHTML({
       videoFileName,
@@ -4169,6 +4518,7 @@ function generateOfflineViewerHTML({ videoFileName, videoIncluded, thumbnailFile
   }
   .ctext { flex: 1; color: var(--text-2); font-size: 0.9rem; word-break: break-word; }
   .emoji { font-size: 1.1rem; margin-right: 0.4rem; }
+  .voice { display: block; width: 100%; max-width: 320px; height: 34px; margin-top: 0.5rem; }
   details { margin-top: 1.5rem; }
   details summary { cursor: pointer; font-weight: 600; padding: 0.75rem 1rem; background: var(--surface); border-radius: 10px; }
   .transcript { margin-top: 0.75rem; display: flex; flex-direction: column; gap: 0.4rem; max-height: 40vh; overflow-y: auto; }
@@ -4476,7 +4826,9 @@ function renderComments() {
     row.setAttribute('data-t', c.timestamp);
     row.innerHTML =
       '<button class="ts">[' + c.time + ']</button>' +
-      '<span class="ctext">' + (c.emoji ? '<span class="emoji">' + c.emoji + '</span>' : '') + esc(c.text) + '</span>';
+      '<span class="ctext">' + (c.emoji ? '<span class="emoji">' + c.emoji + '</span>' : '') + esc(c.text) +
+      (c.voiceFile ? '<audio class="voice" controls preload="none" src="' + c.voiceFile + '"></audio>' : '') +
+      '</span>';
     row.addEventListener('click', function() { seekTo(c.timestamp); });
     box.appendChild(row);
   });
@@ -4719,22 +5071,29 @@ function initEventListeners() {
     }
   });
   
-  elements.submitReaction?.addEventListener('click', () => {
+  elements.submitReaction?.addEventListener('click', async () => {
     const text = elements.reactionText?.value.trim();
-    if (!text) {
-      showToast('Please enter some text', 'error');
+    const hasVoice = !!voiceRecorder.blob;
+
+    if (!text && !hasVoice) {
+      showToast('Add some text or record a voice note', 'error');
       return;
     }
-    
+
+    const id = `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+    const voice = hasVoice ? await attachRecordedVoice(id) : null;
+
     addComment({
-      text,
+      id,
+      voice,
+      text: text || 'Voice reaction',
       timestamp: Math.floor(getCurrentTime()),
       type: 'reaction',
       emoji: elements.selectedEmojiInput?.value,
     });
-    
+
     hideModal(elements.reactionModal);
-    showToast('Reaction added!');
+    showToast(hasVoice ? 'Voice reaction added!' : 'Reaction added!');
   });
   
   // Comment modal
@@ -4747,10 +5106,10 @@ function initEventListeners() {
     }
   });
   
-  elements.submitComment?.addEventListener('click', () => {
-    const text = elements.commentText?.value.trim();
+  elements.submitComment?.addEventListener('click', async () => {
+    const text = elements.commentText?.value.trim() || (voiceRecorder.blob ? 'Voice note' : '');
     if (!text) {
-      showToast('Please enter some text', 'error');
+      showToast('Add some text or record a voice note', 'error');
       return;
     }
 
@@ -4772,7 +5131,12 @@ function initEventListeners() {
     const prefillTimestamp = elements.commentModal?.dataset.prefillTimestamp;
     const timestamp = prefillTimestamp ? parseInt(prefillTimestamp) : Math.floor(getCurrentTime());
 
+    const id = `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+    const voice = voiceRecorder.blob ? await attachRecordedVoice(id) : null;
+
     addComment({
+      id,
+      voice,
       text,
       timestamp,
       type: 'comment',

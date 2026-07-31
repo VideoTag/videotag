@@ -21,6 +21,7 @@ Vidlens (formerly ReactVid / VideoTAG) is a web application that lets you add ti
 ## ✨ Features
 
 - Add timestamped comments and emoji reactions to videos
+- **Voice comments & reactions** — record a spoken note at any moment: the audio is kept *and* transcribed on-device, and both travel into your exports
 - **Offline Pack export** — a ZIP with the video, all comments and a standalone offline viewer
 - Support for YouTube, TikTok, Vimeo, Twitch, **direct .mp4/.webm links** and more
 - Upload and comment on your own video files (up to 2 GB)
@@ -43,6 +44,7 @@ The flagship export. `Export → Offline Pack (ZIP)` produces a folder you can o
 |------|---------|
 | `viewer.html` | Interactive offline viewer — video + synced comments, search, filters, timeline |
 | `video.mp4` / your file | **The actual video** (see below) |
+| `voice/` | Your recorded voice notes, playable from the viewer |
 | `data.json` | Complete machine-readable data (comments, transcript, metadata) |
 | `comments.csv` / `comments.txt` | Spreadsheet & plain-text formats |
 | `comments.srt` | Your comments as subtitles — load into VLC/mpv on top of the video |

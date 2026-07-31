@@ -3056,3 +3056,165 @@ body {
   color: var(--color-text-muted);
   margin-bottom: var(--space-3) !important;
 }
+
+/* ----------------------------------------
+   38. Voice Notes
+   ---------------------------------------- */
+.voice-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-elevated);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: var(--radius-full);
+  width: fit-content;
+  max-width: 100%;
+}
+
+.voice-note__play {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  background: var(--gradient-primary);
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.voice-note__play:hover { transform: scale(1.08); }
+
+.voice-note__wave {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 18px;
+}
+
+.voice-note__wave i {
+  display: block;
+  width: 3px;
+  height: 5px;
+  background: var(--color-primary-light);
+  border-radius: 2px;
+  opacity: 0.55;
+}
+
+.voice-note--playing .voice-note__wave i {
+  animation: voiceWave 0.9s ease-in-out infinite;
+}
+
+.voice-note__wave i:nth-child(2) { animation-delay: 0.1s; }
+.voice-note__wave i:nth-child(3) { animation-delay: 0.2s; }
+.voice-note__wave i:nth-child(4) { animation-delay: 0.3s; }
+.voice-note__wave i:nth-child(5) { animation-delay: 0.15s; }
+.voice-note__wave i:nth-child(6) { animation-delay: 0.25s; }
+.voice-note__wave i:nth-child(7) { animation-delay: 0.05s; }
+
+@keyframes voiceWave {
+  0%, 100% { height: 5px; opacity: 0.55; }
+  50% { height: 16px; opacity: 1; }
+}
+
+.voice-note__time {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+.voice-note__tag {
+  padding: 1px 8px;
+  background: rgba(16, 185, 129, 0.14);
+  border-radius: var(--radius-full);
+  color: var(--color-accent-green);
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.comment--voice { border-left: 3px solid var(--color-primary); }
+
+/* Recorder strip inside the modals */
+.voice-rec {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-4);
+  padding: var(--space-3);
+  background: var(--color-surface-elevated);
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius-md);
+}
+
+.voice-rec__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-full);
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.voice-rec__btn:hover { border-color: var(--color-primary); }
+
+.voice-rec__dot {
+  width: 10px;
+  height: 10px;
+  background: var(--color-accent-red);
+  border-radius: 50%;
+}
+
+.voice-rec__btn--on {
+  border-color: var(--color-accent-red);
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.voice-rec__btn--on .voice-rec__dot { animation: pulse 1s ease-in-out infinite; }
+
+.voice-rec__timer {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-accent-red);
+}
+
+.voice-rec__status {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  flex: 1;
+  min-width: 140px;
+}
+
+.voice-rec__preview {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.voice-rec__preview audio { flex: 1; height: 34px; }
+
+.voice-rec__discard {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+  cursor: pointer;
+}
+
+.voice-rec__discard:hover { color: var(--color-accent-red); }
