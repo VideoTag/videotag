@@ -3338,3 +3338,27 @@ body {
 }
 
 .sub-check input { margin-top: 2px; accent-color: var(--color-primary); }
+
+/* Desktop companion card in the download modal */
+.dl-card--app {
+  border-color: rgba(16, 185, 129, 0.3);
+  background: linear-gradient(145deg, rgba(16, 185, 129, 0.09), rgba(99, 102, 241, 0.05));
+}
+
+.dl-app-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.dl-app-note {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.dl-api-state {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-2) !important;
+}

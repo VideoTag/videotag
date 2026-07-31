@@ -4310,6 +4310,33 @@ async function fetchThumbnailForPack() {
 // disabled YouTube; community instances are dead or JWT-gated), so the
 // reliable path is the user's own instance — then it is genuinely one click.
 const DOWNLOADER_URL = 'https://cobalt.tools/';
+const DESKTOP_APP_URL = 'https://github.com/VideoTag/vidlens-downloads/releases/latest';
+
+// The desktop companion is not bound by browser limits, so it is the honest
+// first answer to "just download it".
+function desktopAppCard() {
+  const platform = navigator.userAgentData?.platform || navigator.platform || '';
+  const isMac = /mac/i.test(platform);
+  const isLinux = /linux/i.test(platform) && !/android/i.test(navigator.userAgent);
+  const file = isMac ? '.dmg for macOS' : isLinux ? '.AppImage / .deb for Linux' : '.exe for Windows';
+
+  return `
+    <div class="dl-card dl-card--app">
+      <h4>💻 Vidlens Downloader <span class="sub-badge">recommended</span></h4>
+      <p>A small desktop app (about 10 MB) that does this properly: paste a link, pick a quality,
+      get the video <strong>and its subtitles</strong>. A browser page cannot fetch protected
+      streams — a desktop app can. Free, no account, nothing uploaded, works on 1000+ sites.</p>
+      <div class="dl-app-row">
+        <a class="btn btn--primary btn--sm" href="${DESKTOP_APP_URL}" target="_blank" rel="noopener">⬇ Download for this computer</a>
+        <span class="dl-app-note">${sanitizeHTML(file)} · then attach the file here</span>
+      </div>
+      <p class="dl-note" style="margin-top:0.75rem;">
+        The builds are not code-signed yet, so Windows or macOS will warn on first launch
+        (<em>More info → Run anyway</em>, or right-click → <em>Open</em>). Every release ships
+        SHA-256 checksums you can verify.
+      </p>
+    </div>`;
+}
 const DOWNLOADER_API_KEY = 'vidlens_downloader_api';
 
 function getDownloaderApi() {
@@ -4401,9 +4428,12 @@ function showDownloaderModal(videoUrl, onFile) {
           <button class="btn btn--ghost btn--sm" id="dlCopy">Copy link</button>
         </div>
 
+        ${desktopAppCard()}
+
         <!-- 1. One click, when an instance is connected -->
-        <div class="dl-card dl-card--primary">
-          <h4>⚡ One-click download <span class="sub-badge" id="dlApiState">${getDownloaderApi() ? 'connected' : 'needs setup'}</span></h4>
+        <details class="dl-card dl-card--primary" id="dlApiCard" ${getDownloaderApi() ? 'open' : ''}>
+          <summary>⚡ Advanced: connect your own downloader API</summary>
+          <p class="dl-api-state">Status: <strong id="dlApiState">${getDownloaderApi() ? 'connected' : 'not configured'}</strong></p>
           <p>Vidlens has no server, so it borrows one: connect a <strong>downloader API</strong> (your own
           <a href="https://github.com/imputnet/cobalt/blob/main/docs/run-an-instance.md" target="_blank" rel="noopener">cobalt instance</a>
           — free to self-host) and the video is fetched, saved and attached here in a single click.
@@ -4422,7 +4452,7 @@ function showDownloaderModal(videoUrl, onFile) {
             <p class="sub-stage" id="dlApiStage"></p>
             <div class="sub-bar"><div class="sub-bar__fill sub-bar__fill--indeterminate" style="width:100%"></div></div>
           </div>
-        </div>
+        </details>
 
         <!-- 2. Manual route, embedded when the provider allows it -->
         <details class="dl-card" id="dlManual" ${getDownloaderApi() ? '' : 'open'}>
