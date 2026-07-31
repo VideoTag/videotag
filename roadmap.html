@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vidlens Roadmap — 50+ Planned Improvements</title>
+  <meta name="description" content="What's shipped and what's next for Vidlens: 50+ planned improvements across annotation, playback, exports, collaboration, accessibility and performance. Open source — suggestions welcome.">
+  <meta property="og:image" content="https://vidlens.net/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Vidlens — timestamped comments and reactions on any video, exportable offline">
+  <meta property="og:locale" content="en_US">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Vidlens Roadmap">
+  <meta name="twitter:description" content="Shipped features and 50+ planned improvements. Open source — vote with an issue.">
+  <meta name="twitter:image" content="https://vidlens.net/og-image.png">
+  <meta name="author" content="Gauthier Bros">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <link rel="canonical" href="https://vidlens.net/roadmap.html">
+  <meta name="theme-color" content="#05050a">
+  <meta property="og:title" content="Vidlens Roadmap">
+  <meta property="og:description" content="Shipped features and 50+ planned improvements. Open source — vote with an issue.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://vidlens.net/roadmap.html">
+  <meta property="og:site_name" content="Vidlens">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .rm-legend { display: flex; gap: var(--space-4); flex-wrap: wrap; margin-bottom: var(--space-6); font-size: var(--text-sm); color: var(--color-text-muted); }
+    .rm-tag { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: var(--radius-full); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; flex-shrink: 0; }
+    .rm-tag--done { background: rgba(16,185,129,0.14); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+    .rm-tag--next { background: rgba(99,102,241,0.14); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); }
+    .rm-tag--later { background: rgba(255,255,255,0.05); color: var(--color-text-muted); border: 1px solid rgba(255,255,255,0.1); }
+    .rm-tag--idea { background: rgba(236,72,153,0.12); color: #f472b6; border: 1px solid rgba(236,72,153,0.28); }
+    .rm-list { list-style: none; padding: 0; margin: 0 0 var(--space-6); }
+    .rm-list li { display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-3) var(--space-4); background: var(--color-surface); border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-md); margin-bottom: var(--space-2); color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.55; }
+    .rm-list li b { color: var(--color-text); font-weight: 600; }
+    .rm-num { color: var(--color-text-muted); font-family: var(--font-mono); font-size: 0.72rem; min-width: 24px; padding-top: 2px; }
+  </style>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Vidlens Roadmap — 50+ planned improvements",
+    "url": "https://vidlens.net/roadmap.html",
+    "author": { "@type": "Person", "name": "Gauthier Bros" },
+    "publisher": { "@type": "Organization", "name": "Vidlens", "url": "https://vidlens.net/" },
+    "description": "Shipped features and more than fifty planned improvements for the Vidlens video annotation tool."
+  }
+  </script>
+</head>
+<body>
+  <div class="bg-effects">
+    <div class="bg-gradient"></div>
+    <div class="bg-grid"></div>
+  </div>
+
+  <div class="app">
+    <header class="page-header">
+      <a class="page-logo" href="./">🎬 Vid<span>lens</span></a>
+      <nav class="page-nav" aria-label="Main navigation">
+        <a href="about.html">About</a>
+        <a href="guide.html">How it works</a>
+        <a href="use-cases.html">Use cases</a>
+        <a href="faq.html">FAQ</a>
+        <a href="roadmap.html" aria-current="page">Roadmap</a>
+        <a href="./" class="btn btn--primary btn--sm">Open the app</a>
+      </nav>
+    </header>
+
+    <main class="page">
+      <h1>Roadmap</h1>
+      <p class="page-lead">
+        Vidlens is open source and built in the open. Here's what already works, and
+        <strong>50+ improvements</strong> queued behind it. Want to reorder this list?
+        <a href="https://github.com/VideoTag/videotag/issues" target="_blank" rel="noopener">Open an issue</a> —
+        real demand beats my guesses.
+      </p>
+
+      <div class="rm-legend">
+        <span><span class="rm-tag rm-tag--done">Shipped</span> already live</span>
+        <span><span class="rm-tag rm-tag--next">Next</span> being worked on</span>
+        <span><span class="rm-tag rm-tag--later">Later</span> planned</span>
+        <span><span class="rm-tag rm-tag--idea">Idea</span> exploring</span>
+      </div>
+
+      <h2>Shipped</h2>
+      <ul class="rm-list">
+        <li><span class="rm-tag rm-tag--done">Shipped</span><span><b>Offline Pack ZIP</b> — video + notes + standalone viewer in one folder</span></li>
+        <li><span class="rm-tag rm-tag--done">Shipped</span><span><b>Self-contained HTML report</b> that loads your own video file for real offline seeking</span></li>
+        <li><span class="rm-tag rm-tag--done">Shipped</span><span><b>Comments as SRT subtitles</b> — read your notes over the video in VLC</span></li>
+        <li><span class="rm-tag rm-tag--done">Shipped</span><span><b>Direct video URL</b> support (.mp4/.webm/.mov) with native playback</span></li>
+        <li><span class="rm-tag rm-tag--done">Shipped</span><span><b>Comment editing, search and filters</b>, plus recent-video quick resume</span></li>
+        <li><span class="rm-tag rm-tag--done">Shipped</span><span><b>Keyboard shortcuts</b> and drag &amp; drop upload</span></li>
+        <li><span class="rm-tag rm-tag--done">Shipped</span><span><b>PDF / CSV / JSON / TXT / SRT / HTML</b> exports with an "include reactions" toggle</span></li>
+        <li><span class="rm-tag rm-tag--done">Shipped</span><span><b>Real video metadata</b> (title, author, thumbnail) via oEmbed</span></li>
+      </ul>
+
+      <h2>Next up</h2>
+      <ul class="rm-list">
+        <li><span class="rm-num">01</span><span class="rm-tag rm-tag--next">Next</span><span><b>Frame-accurate stepping</b> — comma/period keys to move one frame at a time on local video</span></li>
+        <li><span class="rm-num">02</span><span class="rm-tag rm-tag--next">Next</span><span><b>Note ranges</b> — annotate a span (in/out points), not just a single instant</span></li>
+        <li><span class="rm-num">03</span><span class="rm-tag rm-tag--next">Next</span><span><b>Colour-coded tags &amp; categories</b> for notes, with per-tag filtering and stats</span></li>
+        <li><span class="rm-num">04</span><span class="rm-tag rm-tag--next">Next</span><span><b>Import an Offline Pack back into the app</b> — reopen data.json and keep annotating</span></li>
+        <li><span class="rm-num">05</span><span class="rm-tag rm-tag--next">Next</span><span><b>Undo / redo</b> for note edits and deletions</span></li>
+        <li><span class="rm-num">06</span><span class="rm-tag rm-tag--next">Next</span><span><b>Playback speed control</b> (0.25×–2×) with a shortcut</span></li>
+        <li><span class="rm-num">07</span><span class="rm-tag rm-tag--next">Next</span><span><b>Screenshot the current frame</b> and attach it to a note (local video)</span></li>
+        <li><span class="rm-num">08</span><span class="rm-tag rm-tag--next">Next</span><span><b>Dark/light theme toggle</b> honouring system preference</span></li>
+        <li><span class="rm-num">09</span><span class="rm-tag rm-tag--next">Next</span><span><b>Multi-language UI</b> — French first, then Spanish and German</span></li>
+        <li><span class="rm-num">10</span><span class="rm-tag rm-tag--next">Next</span><span><b>Markdown export</b> with clickable timestamp links</span></li>
+      </ul>
+
+      <h2>Planned</h2>
+      <ul class="rm-list">
+        <li><span class="rm-num">11</span><span class="rm-tag rm-tag--later">Later</span><span><b>Chapters</b> auto-generated from note density</span></li>
+        <li><span class="rm-num">12</span><span class="rm-tag rm-tag--later">Later</span><span><b>Waveform / activity strip</b> under the timeline</span></li>
+        <li><span class="rm-num">13</span><span class="rm-tag rm-tag--later">Later</span><span><b>Loop a section</b> between two timestamps for practice</span></li>
+        <li><span class="rm-num">14</span><span class="rm-tag rm-tag--later">Later</span><span><b>Bulk timestamp shift</b> to re-sync notes after a re-edit</span></li>
+        <li><span class="rm-num">15</span><span class="rm-tag rm-tag--later">Later</span><span><b>Merge two note sets</b> from different reviewers</span></li>
+        <li><span class="rm-num">16</span><span class="rm-tag rm-tag--later">Later</span><span><b>Reviewer names</b> on notes for multi-person passes</span></li>
+        <li><span class="rm-num">17</span><span class="rm-tag rm-tag--later">Later</span><span><b>Threaded replies</b> on a note</span></li>
+        <li><span class="rm-num">18</span><span class="rm-tag rm-tag--later">Later</span><span><b>Resolve / done state</b> for feedback workflows</span></li>
+        <li><span class="rm-num">19</span><span class="rm-tag rm-tag--later">Later</span><span><b>Priority levels</b> (blocker / nice-to-have) with filtering</span></li>
+        <li><span class="rm-num">20</span><span class="rm-tag rm-tag--later">Later</span><span><b>Custom emoji set</b> — bring your own reaction palette</span></li>
+        <li><span class="rm-num">21</span><span class="rm-tag rm-tag--later">Later</span><span><b>Note templates</b> for repeated review checklists</span></li>
+        <li><span class="rm-num">22</span><span class="rm-tag rm-tag--later">Later</span><span><b>Auto-save drafts</b> so an interrupted note is never lost</span></li>
+        <li><span class="rm-num">23</span><span class="rm-tag rm-tag--later">Later</span><span><b>Full-project backup / restore</b> of every video's notes in one file</span></li>
+        <li><span class="rm-num">24</span><span class="rm-tag rm-tag--later">Later</span><span><b>Storage manager</b> showing space used per video, with cleanup</span></li>
+        <li><span class="rm-num">25</span><span class="rm-tag rm-tag--later">Later</span><span><b>IndexedDB storage</b> to lift the localStorage size ceiling</span></li>
+        <li><span class="rm-num">26</span><span class="rm-tag rm-tag--later">Later</span><span><b>PWA install + offline app shell</b> — use Vidlens itself with no connection</span></li>
+        <li><span class="rm-num">27</span><span class="rm-tag rm-tag--later">Later</span><span><b>Mobile-first layout pass</b> with bigger touch targets</span></li>
+        <li><span class="rm-num">28</span><span class="rm-tag rm-tag--later">Later</span><span><b>Swipe gestures</b> for seeking on touch devices</span></li>
+        <li><span class="rm-num">29</span><span class="rm-tag rm-tag--later">Later</span><span><b>Picture-in-picture</b> while scrolling long note lists</span></li>
+        <li><span class="rm-num">30</span><span class="rm-tag rm-tag--later">Later</span><span><b>Resizable split view</b> between player and notes</span></li>
+        <li><span class="rm-num">31</span><span class="rm-tag rm-tag--later">Later</span><span><b>Compact / dense list mode</b> for hundreds of notes</span></li>
+        <li><span class="rm-num">32</span><span class="rm-tag rm-tag--later">Later</span><span><b>Virtualised note list</b> for very large sets</span></li>
+        <li><span class="rm-num">33</span><span class="rm-tag rm-tag--later">Later</span><span><b>Streaming ZIP writer</b> so multi-GB packs never hit a memory ceiling</span></li>
+        <li><span class="rm-num">34</span><span class="rm-tag rm-tag--later">Later</span><span><b>Export progress bar</b> with cancel</span></li>
+        <li><span class="rm-num">35</span><span class="rm-tag rm-tag--later">Later</span><span><b>WebVTT export</b> alongside SRT</span></li>
+        <li><span class="rm-num">36</span><span class="rm-tag rm-tag--later">Later</span><span><b>Final Cut / Premiere marker export</b> (XML / EDL)</span></li>
+        <li><span class="rm-num">37</span><span class="rm-tag rm-tag--later">Later</span><span><b>YouTube chapter block</b> ready to paste into a description</span></li>
+        <li><span class="rm-num">38</span><span class="rm-tag rm-tag--later">Later</span><span><b>Notion / Obsidian friendly Markdown</b> export presets</span></li>
+        <li><span class="rm-num">39</span><span class="rm-tag rm-tag--later">Later</span><span><b>Print stylesheet</b> for clean paper notes</span></li>
+        <li><span class="rm-num">40</span><span class="rm-tag rm-tag--later">Later</span><span><b>Subtitle file import</b> (.srt/.vtt) as a transcript source</span></li>
+        <li><span class="rm-num">41</span><span class="rm-tag rm-tag--later">Later</span><span><b>Transcript search</b> with jump-to-match</span></li>
+        <li><span class="rm-num">42</span><span class="rm-tag rm-tag--later">Later</span><span><b>Speaker labels</b> in transcripts</span></li>
+        <li><span class="rm-num">43</span><span class="rm-tag rm-tag--later">Later</span><span><b>Local Whisper-style transcription</b> via WebGPU — no cloud, no upload</span></li>
+        <li><span class="rm-num">44</span><span class="rm-tag rm-tag--later">Later</span><span><b>Auto-summary of notes</b> generated fully on-device</span></li>
+        <li><span class="rm-num">45</span><span class="rm-tag rm-tag--later">Later</span><span><b>Screen-reader pass</b> with full ARIA live regions</span></li>
+        <li><span class="rm-num">46</span><span class="rm-tag rm-tag--later">Later</span><span><b>High-contrast theme</b> and configurable font size</span></li>
+        <li><span class="rm-num">47</span><span class="rm-tag rm-tag--later">Later</span><span><b>Customisable keyboard shortcuts</b></span></li>
+        <li><span class="rm-num">48</span><span class="rm-tag rm-tag--later">Later</span><span><b>Command palette</b> (Ctrl+K) for every action</span></li>
+        <li><span class="rm-num">49</span><span class="rm-tag rm-tag--later">Later</span><span><b>Onboarding tour</b> for first-time visitors</span></li>
+        <li><span class="rm-num">50</span><span class="rm-tag rm-tag--later">Later</span><span><b>Sample video</b> to try the app with zero setup</span></li>
+        <li><span class="rm-num">51</span><span class="rm-tag rm-tag--later">Later</span><span><b>More platforms</b>: Rumble, Bilibili, Kick, Loom, Vidyard, PeerTube</span></li>
+        <li><span class="rm-num">52</span><span class="rm-tag rm-tag--later">Later</span><span><b>Playlist mode</b> — annotate a series and keep one combined export</span></li>
+        <li><span class="rm-num">53</span><span class="rm-tag rm-tag--later">Later</span><span><b>Deep links</b> that open a video at a note (?v=…&amp;t=…)</span></li>
+        <li><span class="rm-num">54</span><span class="rm-tag rm-tag--later">Later</span><span><b>Automated test suite in CI</b> on every push</span></li>
+        <li><span class="rm-num">55</span><span class="rm-tag rm-tag--later">Later</span><span><b>Modular source split</b> + JSDoc types for contributors</span></li>
+      </ul>
+
+      <h2>Exploring</h2>
+      <ul class="rm-list">
+        <li><span class="rm-num">56</span><span class="rm-tag rm-tag--idea">Idea</span><span><b>Peer-to-peer live review</b> (WebRTC) — two people, same timeline, still no server</span></li>
+        <li><span class="rm-num">57</span><span class="rm-tag rm-tag--idea">Idea</span><span><b>Optional self-hosted sync</b> for teams that want shared projects</span></li>
+        <li><span class="rm-num">58</span><span class="rm-tag rm-tag--idea">Idea</span><span><b>Browser extension</b> to annotate without leaving the video site</span></li>
+        <li><span class="rm-num">59</span><span class="rm-tag rm-tag--idea">Idea</span><span><b>Scene detection</b> in the browser to pre-mark cuts</span></li>
+        <li><span class="rm-num">60</span><span class="rm-tag rm-tag--idea">Idea</span><span><b>Clip export</b> — cut the marked range out of a local video with ffmpeg.wasm</span></li>
+      </ul>
+
+      <div class="page-callout">
+        <p>
+          <strong>Honest note on downloads:</strong> a page with no server can't pull protected
+          streams from YouTube &amp; co. — their stream URLs are ciphered and cross-origin blocked.
+          Vidlens will keep making everything <em>around</em> that effortless (official routes, a
+          prefilled <code>yt-dlp</code> command, one-click attach) rather than pretend otherwise.
+        </p>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <p class="footer__text">
+        <span class="footer__logo">Vid<span>lens</span></span>
+        — Made with ❤️ for video enthusiasts
+      </p>
+      <nav class="footer__nav" aria-label="Site pages">
+        <a href="./">App</a>
+        <a href="about.html">About</a>
+        <a href="guide.html">How it works</a>
+        <a href="use-cases.html">Use cases</a>
+        <a href="faq.html">FAQ</a>
+        <a href="roadmap.html">Roadmap</a>
+        <a href="https://github.com/VideoTag/videotag" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </footer>
+  </div>
+</body>
+</html>

@@ -2,7 +2,7 @@
 
 Vidlens (formerly ReactVid / VideoTAG) is a web application that lets you add timestamped reactions and comments to videos from many platforms — and take **everything offline** as a self-contained ZIP pack (video + comments + interactive viewer).
 
-**Live app:** https://vidlens.net/ — see also [About](https://vidlens.net/about.html) · [How it works](https://vidlens.net/guide.html) · [FAQ](https://vidlens.net/faq.html)
+**Live app:** https://vidlens.net/ — see also [About](https://vidlens.net/about.html) · [How it works](https://vidlens.net/guide.html) · [15 use cases](https://vidlens.net/use-cases.html) · [FAQ](https://vidlens.net/faq.html) · [Roadmap](https://vidlens.net/roadmap.html)
 
 ## 📋 Table of Contents
 

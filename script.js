@@ -164,6 +164,7 @@ function cacheElements() {
     'addAllTranscriptBtn', 'clearTranscriptBtn',
     'exportPDFBtn', 'exportCSVBtn', 'exportJSONBtn', 'exportTXTBtn', 'exportSRTBtn',
     'searchComments', 'recentVideos', 'recentVideosList', 'includeReactionsToggle',
+    'downloadVideoBtn',
   ];
 
   ids.forEach(id => {
@@ -2216,8 +2217,9 @@ function buildReportPayload() {
 // One self-contained HTML report for every source type.
 // embeddedVideo: { dataUrl, type } when the video is inlined (local uploads),
 // otherwise the report offers the platform embed plus "load your own file".
-function generateReportHTML(embeddedVideo = null) {
+function generateReportHTML(embeddedVideo = null, thumbDataUrl = null) {
   const payload = buildReportPayload();
+  payload.thumb = thumbDataUrl;
   const routes = payload.watchUrl || payload.embedUrl ? getDownloadRoutes(payload.watchUrl, payload.providerName) : [];
   const json = JSON.stringify(payload).replace(/</g, '\\u003c');
 
@@ -2335,6 +2337,7 @@ function generateReportHTML(embeddedVideo = null) {
       <div class="stage" id="stage"></div>
 
       <div class="srcbar">
+        <button class="btn" id="dlBtn">⬇ Download video</button>
         <button class="btn btn--ghost btn--sm" id="pick">📂 Load video file</button>
         <button class="btn btn--ghost btn--sm" id="urlBtn">🔗 Direct URL</button>
         <button class="btn btn--ghost btn--sm" id="backBtn" style="display:none">↩ Online player</button>
@@ -2353,7 +2356,7 @@ function generateReportHTML(embeddedVideo = null) {
       </div>
 
       ${routes.length ? `
-      <details class="get">
+      <details class="get"${embeddedVideo ? '' : ' open'}>
         <summary>📥 How to get the video file for offline playback</summary>
         <div class="routes">
           ${routes.map((r, i) => `
@@ -2449,13 +2452,42 @@ function attach(v) {
   v.addEventListener('timeupdate', tick);
 }
 
+// Platforms refuse to embed when the page is opened straight from disk
+// (file:// has a null origin — YouTube answers "Error 153"), so show a
+// poster card with real actions instead of a broken player.
+var IS_FILE = location.protocol === 'file:';
+
 function showEmbed() {
   if (!R.embedUrl) { showNoVideo(); return; }
+
+  if (IS_FILE) { showPoster(); return; }
+
   stage.className = 'stage' + (R.provider === 'tiktok' || R.provider === 'instagram' || R.provider === 'youtube_shorts' ? ' vertical' : '');
   stage.innerHTML = '<iframe src="' + R.embedUrl + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
   video = null; ready = false;
   document.getElementById('backBtn').style.display = 'none';
   document.getElementById('hint2').textContent = 'Online player. Load a video file for real seeking and offline playback.';
+}
+
+function showPoster() {
+  stage.className = 'stage';
+  video = null; ready = false;
+  var thumb = R.thumb ? '<img src="' + R.thumb + '" alt="" style="width:100%;display:block;opacity:.45;">' : '';
+  stage.innerHTML =
+    '<div style="position:relative;min-height:220px;background:#000;">' + thumb +
+    '<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:1.5rem;gap:0.8rem;">' +
+      '<div style="font-size:2.4rem;">🎬</div>' +
+      '<p style="font-size:0.92rem;font-weight:600;">' + esc(R.providerName) + ' does not allow playback inside a file opened from your computer.</p>' +
+      '<p style="font-size:0.78rem;color:var(--muted);max-width:420px;">Load your copy of the video below for full offline playback with synced notes — or watch it online.</p>' +
+      '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:center;">' +
+        '<button class="btn" id="posterLoad">📂 Load video file</button>' +
+        (R.watchUrl ? '<a class="btn btn--ghost" href="' + R.watchUrl + '" target="_blank" rel="noopener">▶ Watch online</a>' : '') +
+      '</div>' +
+    '</div></div>';
+  var pl = document.getElementById('posterLoad');
+  if (pl) pl.addEventListener('click', function () { document.getElementById('file').click(); });
+  document.getElementById('backBtn').style.display = 'none';
+  document.getElementById('hint2').textContent = 'Opened from your computer — load the video file to play it here.';
 }
 
 function showNoVideo() {
@@ -2466,7 +2498,10 @@ function showNoVideo() {
 
 function useFile(file) {
   if (file.type && file.type.indexOf('video/') !== 0) { toast('That is not a video file'); return; }
-  playSrc(URL.createObjectURL(file), file.type);
+  var url = URL.createObjectURL(file);
+  DL_SRC = url;
+  pickedName = file.name;
+  playSrc(url, file.type);
   toast('Playing: ' + file.name);
 }
 
@@ -2484,6 +2519,47 @@ function playSrc(src, type) {
   document.getElementById('hint2').textContent = 'Playing your local copy — timestamps seek for real.';
 }
 
+// Download: a real file download whenever a file source exists, otherwise
+// open the "how to get it" routes (a static page cannot pull a protected
+// platform stream — no server, and the stream URLs are ciphered).
+var DL_SRC = ${embeddedVideo ? JSON.stringify(embeddedVideo.dataUrl) : 'null'};
+var pickedName = null;
+
+function safeName(ext) {
+  return (R.title || 'video').replace(/[^\\w\\s.-]/g, '').replace(/\\s+/g, '_').substring(0, 80) + (ext || '.mp4');
+}
+
+function triggerDownload(href, name) {
+  var a = document.createElement('a');
+  a.href = href; a.download = name; a.rel = 'noopener';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+document.getElementById('dlBtn').addEventListener('click', function () {
+  if (DL_SRC) {
+    triggerDownload(DL_SRC, pickedName || safeName('.mp4'));
+    toast('Downloading the video file...');
+    return;
+  }
+  if (R.directUrl) {
+    triggerDownload(R.directUrl, safeName('.mp4'));
+    toast('Downloading from the direct URL...');
+    return;
+  }
+  var box = document.querySelector('details.get');
+  if (box) {
+    box.open = true;
+    box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (R.watchUrl && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(R.watchUrl).then(function () {
+        toast('Video URL copied — pick a download route below');
+      }, function () { toast('Pick a download route below'); });
+    } else { toast('Pick a download route below'); }
+  } else {
+    toast('No downloadable source for this video');
+  }
+});
+
 document.getElementById('pick').addEventListener('click', function () { document.getElementById('file').click(); });
 document.getElementById('file').addEventListener('change', function (e) {
   var f = e.target.files && e.target.files[0];
@@ -2491,7 +2567,7 @@ document.getElementById('file').addEventListener('change', function (e) {
 });
 document.getElementById('urlBtn').addEventListener('click', function () {
   var u = prompt('Paste a direct video URL (.mp4, .webm ...):', R.directUrl || '');
-  if (u) playSrc(u.trim(), '');
+  if (u) { R.directUrl = u.trim(); playSrc(R.directUrl, ''); }
 });
 document.getElementById('backBtn').addEventListener('click', showEmbed);
 
@@ -2650,10 +2726,21 @@ async function exportHTML() {
 
   const isLocalVideo = state.currentProvider === 'upload' && state.uploadedVideo;
 
+  // Inline the poster so the report still looks right with no network
+  let thumbDataUrl = null;
+  if (!isLocalVideo) {
+    try {
+      const thumb = await fetchThumbnailForPack();
+      if (thumb) thumbDataUrl = await fileToBase64(thumb.blob);
+    } catch {
+      // no thumbnail — the report falls back to a plain poster card
+    }
+  }
+
   if (isLocalVideo) {
     if (state.uploadedVideo.size > CONFIG.EMBED_VIDEO_LIMIT) {
       showToast(`Video too large to embed in one HTML file (max ${formatFileSize(CONFIG.EMBED_VIDEO_LIMIT)}). Exporting the report — load the file in it, or use the Offline Pack (ZIP).`, 'warning');
-      downloadFile(generateReportHTML(null), `${state.videoTitle}_report.html`, 'text/html');
+      downloadFile(generateReportHTML(null, thumbDataUrl), `${state.videoTitle}_report.html`, 'text/html');
       return;
     }
 
@@ -2670,7 +2757,7 @@ async function exportHTML() {
     return;
   }
 
-  downloadFile(generateReportHTML(null), `${state.videoTitle}_report.html`, 'text/html');
+  downloadFile(generateReportHTML(null, thumbDataUrl), `${state.videoTitle}_report.html`, 'text/html');
   showToast('HTML report exported!', 'success');
 }
 
@@ -3613,6 +3700,40 @@ function initEventListeners() {
   elements.videoUpload?.addEventListener('change', handleFileSelect);
   elements.removeFile?.addEventListener('click', removeUploadedFile);
   
+  // Download the video: direct file when we have one, guided routes otherwise
+  elements.downloadVideoBtn?.addEventListener('click', () => {
+    if (!state.videoLoaded) {
+      showToast('Please load a video first', 'error');
+      return;
+    }
+
+    if (state.currentProvider === 'upload' && state.uploadedVideo) {
+      downloadBlob(state.uploadedVideo, state.uploadedVideo.name || 'video.mp4');
+      showToast('Downloading your video file...', 'success');
+      return;
+    }
+
+    if (state.currentProvider === 'direct' && state.originalVideoUrl) {
+      const link = document.createElement('a');
+      link.href = state.originalVideoUrl;
+      link.download = sanitizeFileName(state.videoTitle) || 'video.mp4';
+      link.rel = 'noopener';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      showToast('Downloading from the direct URL...', 'success');
+      return;
+    }
+
+    // Platform video: a browser page cannot pull a protected stream — guide instead
+    askForPackVideo().then((file) => {
+      if (file) {
+        downloadBlob(file, file.name);
+        showToast('Saved a copy — it will also be bundled if you export a pack', 'success');
+      }
+    });
+  });
+
   // Change video button
   elements.changeVideoBtn?.addEventListener('click', () => {
     state.videoLoaded = false;

@@ -11,9 +11,19 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://vidlens.net/use-cases.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://vidlens.net/faq.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://vidlens.net/roadmap.html</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
   </url>
   <url>
     <loc>https://vidlens.net/about.html</loc>
