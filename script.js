@@ -1854,6 +1854,7 @@ const ASR = {
   pipe: null,
   pipeKey: null,
   device: null,
+  announced: false,
 };
 
 // --- Subtitle file parsing (SRT / WebVTT) — exact source timings kept ---
@@ -1977,34 +1978,54 @@ const ASR_CHUNK_SECONDS = 30;
 function collapseRepeats(text) {
   let out = text.replace(/\s+/g, ' ').trim();
 
-  // A phrase glued to itself two or more times ("a b c a b c a b c" → "a b c")
+  // A longer phrase glued to itself three or more times. Deliberately
+  // conservative: natural speech repeats short phrases all the time.
   for (let pass = 0; pass < 3; pass++) {
-    const collapsed = out.replace(/(.{4,240}?)(?:\s*\1){1,}/g, '$1');
+    const collapsed = out.replace(/(.{8,240}?)(?:\s*\1){2,}/g, '$1');
     if (collapsed === out) break;
     out = collapsed;
   }
 
-  // The same word chanted over and over
-  out = out.replace(/\b(\w+)(\s+\1\b)+/gi, '$1');
+  // The same word chanted over and over, punctuation and all
+  // ("Merci. Merci. Merci." → "Merci.")
+  const tokens = out.split(/\s+/);
+  const deduped = [];
+  const bare = (w) => w.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+  tokens.forEach(token => {
+    const prev = deduped[deduped.length - 1];
+    if (prev && bare(prev) && bare(prev) === bare(token)) return;
+    deduped.push(token);
+  });
+  out = deduped.join(' ');
 
   const words = out.split(' ');
-  if (words.length > 12) {
-    const unique = new Set(words.map(w => w.toLowerCase()));
-    // Almost no vocabulary across many words = degenerate output
-    if (unique.size / words.length < 0.25) return '';
+  if (words.length > 25) {
+    const unique = new Set(words.map(w => w.toLowerCase().replace(/[^\w]/g, '')));
+    // Only a handful of distinct words across a long passage = degenerate
+    if (unique.size / words.length < 0.15) return '';
   }
   return out.trim();
 }
 
 function cleanCues(cues, previous) {
+  const normalize = (t) => t.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/g, ' ').trim();
+
   const kept = [];
-  let last = previous?.text?.toLowerCase() || '';
+  let last = normalize(previous?.text || '');
 
   cues.forEach(cue => {
     const text = collapseRepeats(cue.text);
     if (!text || text.length < 2) return;
-    const key = text.toLowerCase();
-    if (key === last) return;            // identical to the cue before it
+
+    const key = normalize(text);
+    // Same words as the cue before, punctuation aside → stretch the previous
+    // cue instead of repeating it ("Merci." × 12 during applause)
+    if (key === last) {
+      const target = kept[kept.length - 1] || previous;
+      if (target) target.end = Math.max(target.end, cue.end);
+      return;
+    }
+
     last = key;
     kept.push({ ...cue, text });
   });
@@ -2033,13 +2054,14 @@ async function generateSubtitlesFromAudio(modelKey, language, ui) {
     // Precision matters: q8 on WebGPU wrecks Whisper's encoder and produces
     // looping multilingual nonsense, so the encoder stays fp16/fp32. Some
     // GPUs cannot allocate those buffers, hence the fallback chain.
+    // One configuration per backend: trying several would download a second
+    // set of weights every time the first one is unavailable.
     const attempts = navigator.gpu
       ? [
-          { device: 'webgpu', dtype: { encoder_model: 'fp16', decoder_model_merged: 'q4' }, label: 'GPU' },
           { device: 'webgpu', dtype: { encoder_model: 'fp32', decoder_model_merged: 'q4' }, label: 'GPU' },
-          { device: 'wasm', dtype: { encoder_model: 'fp32', decoder_model_merged: 'q8' }, label: 'CPU' },
+          { device: 'wasm', dtype: 'q8', label: 'CPU' },
         ]
-      : [{ device: 'wasm', dtype: { encoder_model: 'fp32', decoder_model_merged: 'q8' }, label: 'CPU' }];
+      : [{ device: 'wasm', dtype: 'q8', label: 'CPU' }];
 
     let lastError;
     for (const attempt of attempts) {
@@ -2049,7 +2071,12 @@ async function generateSubtitlesFromAudio(modelKey, language, ui) {
           device: attempt.device,
           progress_callback: (p) => {
             if (p.status === 'progress' && p.total) {
-              setProgress((p.loaded / p.total) * 100, `Downloading model — ${formatFileSize(p.loaded)} / ${formatFileSize(p.total)}`);
+              // Cached files stream instantly; only a real network fetch crawls
+              setProgress((p.loaded / p.total) * 100,
+                `${p.loaded < p.total ? 'Loading' : 'Ready'} — ${formatFileSize(p.loaded)} / ${formatFileSize(p.total)}`);
+            } else if (p.status === 'done' && !ASR.announced) {
+              ASR.announced = true;
+              setStage('Model ready (cached for next time) — preparing audio…');
             }
           },
         });
@@ -2087,19 +2114,25 @@ async function generateSubtitlesFromAudio(modelKey, language, ui) {
     const slice = audio.slice(offset * sampleRate, Math.min((offset + ASR_CHUNK_SECONDS) * sampleRate, audio.length));
     if (slice.length < sampleRate * 0.2) continue;   // skip a sliver of trailing silence
 
-    const output = await ASR.pipe(slice, {
+    let output;
+    try {
+      output = await ASR.pipe(slice, {
       return_timestamps: true,
       language: language === 'auto' ? undefined : language,
       task: 'transcribe',
-      // Greedy + anti-loop guards: Whisper otherwise repeats a phrase
-      // forever when it meets music, silence or an unclear passage
-      temperature: 0,
-      do_sample: false,
-      no_repeat_ngram_size: 4,
-      repetition_penalty: 1.15,
-      max_new_tokens: 180,
-      condition_on_previous_text: false,
-    });
+      // Greedy decoding only. n-gram/repetition penalties also punish the
+      // repeating timestamp tokens, which makes Whisper stop after a few
+      // words — loops are handled afterwards in cleanCues() instead.
+        temperature: 0,
+        do_sample: false,
+        max_new_tokens: 448,
+      });
+    } catch (error) {
+      // One bad chunk (memory spike, odd audio) must not lose the whole run
+      console.warn(`Chunk ${i + 1} failed:`, error?.message || error);
+      setStage(`Chunk ${i + 1} could not be transcribed — continuing…`);
+      continue;
+    }
 
     const parts = output.chunks?.length
       ? output.chunks
