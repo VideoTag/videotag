@@ -5880,6 +5880,210 @@ function initKonami() {
 }
 
 // ============================================
+// 21. PWA: install, offline, share target, alerts
+// ============================================
+
+const PWA = {
+  registration: null,
+  installPrompt: null,
+  NEWS_KEY: 'vidlens_news_sha',
+  NEWS_API: 'https://api.github.com/repos/VideoTag/videotag/commits?per_page=1',
+};
+
+function isStandalone() {
+  return window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia('(display-mode: window-controls-overlay)').matches ||
+    window.navigator.standalone === true;
+}
+
+async function initServiceWorker() {
+  if (!('serviceWorker' in navigator) || isLocalFile()) return;
+
+  try {
+    PWA.registration = await navigator.serviceWorker.register('sw.js', { scope: './' });
+
+    // A new version is waiting: let the user decide when to take it
+    PWA.registration.addEventListener('updatefound', () => {
+      const incoming = PWA.registration.installing;
+      incoming?.addEventListener('statechange', () => {
+        if (incoming.state === 'installed' && navigator.serviceWorker.controller) {
+          showUpdateToast(incoming);
+        }
+      });
+    });
+
+    // On a first visit the worker claims the page and fires controllerchange:
+    // reloading there would bounce every new visitor. Only reload when an
+    // existing controller is replaced, i.e. a real update was accepted.
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || reloading) return;
+      reloading = true;
+      window.location.reload();
+    });
+  } catch (error) {
+    console.warn('Service worker registration failed:', error?.message);
+  }
+}
+
+function showUpdateToast(worker) {
+  const toast = document.createElement('div');
+  toast.className = 'update-toast';
+  toast.innerHTML = `
+    <span>A new version of Vidlens is ready.</span>
+    <button class="btn btn--primary btn--sm" id="updateNow">Refresh</button>
+    <button class="btn btn--ghost btn--sm" id="updateLater">Later</button>
+  `;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('update-toast--in'));
+
+  toast.querySelector('#updateNow').addEventListener('click', () => worker.postMessage('skip-waiting'));
+  toast.querySelector('#updateLater').addEventListener('click', () => toast.remove());
+}
+
+// ---------- install ----------
+function initInstallPrompt() {
+  const button = $('#installBtn');
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    PWA.installPrompt = e;
+    button?.removeAttribute('hidden');
+  });
+
+  button?.addEventListener('click', async () => {
+    if (!PWA.installPrompt) return;
+    PWA.installPrompt.prompt();
+    const { outcome } = await PWA.installPrompt.userChoice;
+    PWA.installPrompt = null;
+    button.setAttribute('hidden', '');
+    if (outcome === 'accepted') showToast('Vidlens installed — it works offline too', 'success');
+  });
+
+  window.addEventListener('appinstalled', () => {
+    button?.setAttribute('hidden', '');
+    showToast('Installed! Vidlens now opens like an app.', 'success');
+  });
+
+  // iOS has no install event: offer the manual route once
+  if (!isStandalone() && /iphone|ipad|ipod/i.test(navigator.userAgent)) {
+    try {
+      if (!localStorage.getItem('vidlens_ios_hint')) {
+        localStorage.setItem('vidlens_ios_hint', '1');
+        setTimeout(() => showToast('Tip: Share → Add to Home Screen to install Vidlens', 'info'), 4000);
+      }
+    } catch {}
+  }
+}
+
+// ---------- share target ----------
+// The manifest sends shares here as ?url=/?text=; pick the first link we find.
+function handleSharedLink() {
+  const params = new URLSearchParams(location.search);
+  const candidate = params.get('url') || params.get('text') || params.get('title') || '';
+  const match = candidate.match(/https?:\/\/[^\s]+/);
+  if (!match) return false;
+
+  if (elements.videoLink) {
+    elements.videoLink.value = match[0];
+    updateDetectedPlatform(match[0]);
+    setTimeout(() => elements.loadVideoBtn?.click(), 300);
+  }
+  history.replaceState({}, '', location.pathname);
+  return true;
+}
+
+// ---------- update alerts ----------
+async function enableNewsAlerts() {
+  if (!('Notification' in window)) {
+    showToast('This browser cannot show notifications', 'error');
+    return;
+  }
+
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') {
+    showToast('Notifications stay off — you can enable them any time', 'info');
+    return;
+  }
+
+  // Chromium lets an installed app poll in the background; elsewhere we check
+  // whenever the app is opened, which needs no server either way.
+  try {
+    const status = await navigator.permissions?.query({ name: 'periodic-background-sync' });
+    if (status?.state === 'granted' && PWA.registration?.periodicSync) {
+      await PWA.registration.periodicSync.register('vidlens-news', {
+        minInterval: 12 * 60 * 60 * 1000,
+      });
+    }
+  } catch {
+    // Not supported here — the on-open check below still runs
+  }
+
+  localStorage.setItem('vidlens_news_optin', '1');
+  showToast('You will be told when Vidlens gets an update', 'success');
+  new Notification('Notifications are on', {
+    body: 'You will hear about new Vidlens features — nothing else.',
+    icon: 'icon-192.png',
+  });
+  checkForUpdatesNow();
+}
+
+async function checkForUpdatesNow() {
+  if (localStorage.getItem('vidlens_news_optin') !== '1') return;
+  if (Notification.permission !== 'granted') return;
+
+  try {
+    const response = await fetch(PWA.NEWS_API, { headers: { Accept: 'application/vnd.github+json' } });
+    if (!response.ok) return;
+
+    const [latest] = await response.json();
+    if (!latest) return;
+
+    const seen = localStorage.getItem(PWA.NEWS_KEY);
+    localStorage.setItem(PWA.NEWS_KEY, latest.sha);
+    if (!seen || seen === latest.sha) return;   // first run announces nothing
+
+    const message = (latest.commit?.message || '').split('\n')[0];
+    const body = message.slice(0, 140) || 'Open Vidlens to see what changed.';
+
+    if (PWA.registration?.showNotification) {
+      PWA.registration.showNotification('Vidlens just got an update', {
+        body, icon: 'icon-192.png', badge: 'favicon-32.png', tag: 'vidlens-update',
+      });
+    } else {
+      new Notification('Vidlens just got an update', { body, icon: 'icon-192.png' });
+    }
+  } catch {
+    // offline or rate-limited
+  }
+}
+
+function initNotifications() {
+  const button = $('#notifyBtn');
+  if (!button || !('Notification' in window)) return;
+
+  const paint = () => {
+    const on = Notification.permission === 'granted' && localStorage.getItem('vidlens_news_optin') === '1';
+    button.classList.toggle('btn--active', on);
+    button.title = on ? 'Update alerts are on' : 'Get told when Vidlens is updated';
+  };
+
+  button.addEventListener('click', async () => {
+    if (Notification.permission === 'granted' && localStorage.getItem('vidlens_news_optin') === '1') {
+      localStorage.removeItem('vidlens_news_optin');
+      showToast('Update alerts switched off', 'info');
+    } else {
+      await enableNewsAlerts();
+    }
+    paint();
+  });
+
+  paint();
+  setTimeout(checkForUpdatesNow, 3000);
+}
+
+// ============================================
 // 20. INITIALIZATION
 // ============================================
 
@@ -5890,12 +6094,17 @@ function init() {
   initStarPrompt();
   initKonami();
   initFunTips();
+  initServiceWorker();
+  initInstallPrompt();
+  initNotifications();
 
   if (isLocalFile()) {
     console.log('Running from file:// - some features may be limited');
   }
   
   // Handle URL params for direct video loading
+  if (handleSharedLink()) return;
+
   const params = new URLSearchParams(location.search);
   const videoUrl = params.get('url') || params.get('v');
   

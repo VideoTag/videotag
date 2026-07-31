@@ -2,9 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="Vidlens - Add timestamped reactions and comments to videos from YouTube, TikTok, Vimeo, direct MP4 links and local files. Export everything as an offline ZIP pack.">
   <meta name="theme-color" content="#05050a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Vidlens">
+  <meta name="format-detection" content="telephone=no">
   <meta property="og:title" content="Vidlens - Video Reactions & Comments">
   <meta property="og:description" content="Add timestamped reactions and comments to any video. Export as an offline ZIP pack with the video, comments and transcript.">
   <meta property="og:type" content="website">
@@ -78,6 +83,12 @@
           <span class="hero__star-icon">⭐</span>
           <span>Star on GitHub</span>
         </a>
+        <button class="hero__chip" id="installBtn" hidden title="Install Vidlens as an app">
+          <span>⬇</span><span>Install app</span>
+        </button>
+        <button class="hero__chip" id="notifyBtn" title="Get told when Vidlens is updated">
+          <span>🔔</span><span>Alerts</span>
+        </button>
       </div>
       
       <h1 class="hero__title">

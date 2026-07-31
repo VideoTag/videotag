@@ -1,13 +1,65 @@
 {
+  "id": "/",
   "name": "Vidlens — Video Reactions & Comments",
   "short_name": "Vidlens",
   "description": "Add timestamped reactions and comments to any video, then take everything offline as a ZIP pack.",
-  "start_url": "/",
+  "start_url": "/?source=pwa",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
   "background_color": "#05050a",
   "theme_color": "#05050a",
+  "categories": ["productivity", "utilities", "video"],
+  "lang": "en",
+  "dir": "ltr",
   "icons": [
+    { "src": "/favicon-32.png", "sizes": "32x32", "type": "image/png" },
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
-  ]
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Timestamped notes beside the video"
+    },
+    {
+      "src": "/screenshot-mobile.png",
+      "sizes": "540x1080",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Vidlens on a phone"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "How it works",
+      "short_name": "Guide",
+      "url": "/guide.html",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Use cases",
+      "short_name": "Uses",
+      "url": "/use-cases.html",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "share_target": {
+    "action": "/",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "launch_handler": { "client_mode": "focus-existing" },
+  "prefer_related_applications": false
 }

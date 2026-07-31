@@ -3553,3 +3553,168 @@ body {
   color: var(--color-text-muted);
   line-height: 1.6;
 }
+
+/* ----------------------------------------
+   41. PWA chrome: install, alerts, update
+   ---------------------------------------- */
+.hero__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  min-height: 32px;
+  background: var(--color-surface-elevated);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-full);
+  color: var(--color-text-secondary);
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.hero__chip:hover { border-color: var(--color-primary); color: var(--color-text); }
+
+.update-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--space-6) + env(safe-area-inset-bottom));
+  transform: translate(-50%, 140%);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface-elevated);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-lg);
+  font-size: var(--text-sm);
+  z-index: var(--z-toast);
+  transition: transform 0.4s var(--ease-out);
+  max-width: calc(100vw - var(--space-6));
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.update-toast--in { transform: translate(-50%, 0); }
+
+/* ----------------------------------------
+   42. Mobile
+   ---------------------------------------- */
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  overscroll-behavior-y: contain;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Respect notches and home indicators in standalone mode */
+.app {
+  padding-left: max(var(--space-6), env(safe-area-inset-left));
+  padding-right: max(var(--space-6), env(safe-area-inset-right));
+  padding-bottom: max(var(--space-6), env(safe-area-inset-bottom));
+}
+
+@supports (height: 100dvh) {
+  .modal-overlay { height: 100dvh; }
+}
+
+@media (max-width: 768px) {
+  .app { padding: var(--space-4) max(var(--space-4), env(safe-area-inset-left)) max(var(--space-8), env(safe-area-inset-bottom)); }
+
+  .hero { padding: var(--space-4) 0 var(--space-2); }
+  .hero__title { gap: var(--space-3); }
+  .hero__title-icon { width: 44px; height: 44px; }
+  .hero__title-icon svg { width: 20px; height: 20px; }
+  .hero__subtitle { font-size: var(--text-sm); }
+
+  /* iOS zooms any input under 16px on focus — never let that happen */
+  input, select, textarea { font-size: 16px !important; }
+
+  .input-actions { flex-direction: column; align-items: stretch; }
+  .input-divider { text-align: center; }
+
+  /* Comfortable thumb targets everywhere */
+  .btn, .emoji-btn, .hero__chip, .input-action { min-height: 44px; }
+  .btn--sm { min-height: 38px; }
+
+  .reactions-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+
+  .reactions-bar__buttons {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: var(--space-2);
+  }
+
+  .reactions-bar__buttons .btn,
+  .reactions-bar__buttons .emoji-btn--add { grid-column: span 3; }
+  .reactions-bar__divider { display: none; }
+
+  .emoji-btn { width: 100%; min-width: 0; font-size: var(--text-lg); }
+
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+
+  .comments-header, .transcript-header { flex-direction: column; align-items: stretch; gap: var(--space-3); }
+  .comments-actions, .transcript-actions { flex-wrap: wrap; }
+  .comments-search__input, .comments-search__input:focus { width: 100%; }
+  .comments-search { flex: 1; }
+
+  /* Modals become bottom sheets: reachable, swipe-friendly, no clipping */
+  .modal-overlay { align-items: flex-end; padding: 0; }
+
+  .modal {
+    width: 100%;
+    max-width: none;
+    margin: 0;                 /* older rule added 8px, breaking the edge-to-edge sheet */
+    max-height: 92vh;
+    max-height: 92dvh;
+    border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+    padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
+    animation: sheetUp 0.28s var(--ease-out);
+  }
+
+  .modal--sm, .modal--wide, .modal--app { max-width: none; }
+
+  .modal__footer { position: sticky; bottom: 0; background: var(--color-surface); }
+  .modal__footer .btn { flex: 1; justify-content: center; }
+
+  .app-hero { padding: var(--space-6) var(--space-4) var(--space-4); }
+  .app-cta { width: 100%; justify-content: center; }
+
+  .sub-controls label, .dl-api-row input[type="url"] { min-width: 100%; }
+
+  .footer__shortcuts { display: none; }
+  .video-container--vertical { max-height: 70vh; }
+}
+
+@keyframes sheetUp {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+
+@media (max-width: 420px) {
+  .hero__title-text { font-size: 1.9rem; }
+  .reactions-bar__buttons { grid-template-columns: repeat(5, 1fr); }
+  .reactions-bar__buttons .btn,
+  .reactions-bar__buttons .emoji-btn--add { grid-column: span 5; }
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .recent-chip { max-width: 150px; }
+}
+
+/* Landscape phones: keep the player visible, shrink the furniture */
+@media (max-height: 480px) and (orientation: landscape) {
+  .hero, .features-section, .footer { display: none; }
+  .video-container { max-height: 70vh; }
+  .modal { max-height: 96dvh; }
+}
+
+/* Coarse pointers never get hover-only affordances */
+@media (hover: none) {
+  .comment-delete, .comment-edit { opacity: 1; }
+  .btn:hover { transform: none; }
+}
