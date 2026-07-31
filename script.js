@@ -2671,6 +2671,13 @@ function generateReportHTML(embeddedVideo = null, thumbDataUrl = null) {
   .toast { position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%); background: var(--surface-3); border: 1px solid rgba(255,255,255,0.15); padding: 0.6rem 1.2rem; border-radius: 10px; font-size: 0.82rem; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 50; }
   .toast.show { opacity: 1; }
   body.drag::after { content: '📂 Drop the video file to play it here'; position: fixed; inset: 0; background: rgba(5,5,10,0.85); border: 3px dashed var(--primary); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; font-weight: 700; z-index: 100; }
+  .dlmodal { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; padding: 1rem; z-index: 200; }
+  .dlmodal__box { background: var(--surface); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 1.1rem; width: min(960px, 96vw); max-height: 94vh; overflow-y: auto; }
+  .dlmodal__head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.6rem; }
+  .dlmodal__hint { font-size: 0.78rem; color: var(--text-2); margin-bottom: 0.6rem; }
+  .dlmodal__frame { width: 100%; height: min(55vh, 520px); border: 0; border-radius: 12px; background: #fff; display: block; margin-top: 0.6rem; }
+  .dlmodal__credit { font-size: 0.72rem; color: var(--muted); margin-top: 0.6rem; }
+  .dlmodal__credit a { color: var(--primary-light); }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -2895,6 +2902,10 @@ document.getElementById('dlBtn').addEventListener('click', function () {
     toast('Downloading from the direct URL...');
     return;
   }
+  if (R.watchUrl && !IS_FILE) {
+    openDownloader();
+    return;
+  }
   var box = document.querySelector('details.get');
   if (box) {
     box.open = true;
@@ -2908,6 +2919,40 @@ document.getElementById('dlBtn').addEventListener('click', function () {
     toast('No downloadable source for this video');
   }
 });
+
+// Embedded downloader, same as on vidlens.net. Browsers block third-party
+// frames from file:// pages, so there we fall back to the routes panel.
+function openDownloader() {
+  var back = document.createElement('div');
+  back.className = 'dlmodal';
+  back.innerHTML =
+    '<div class="dlmodal__box">' +
+      '<div class="dlmodal__head">' +
+        '<strong>⬇ Download the video</strong>' +
+        '<button class="btn btn--ghost btn--sm" id="dlmClose">Close</button>' +
+      '</div>' +
+      '<p class="dlmodal__hint">Link copied — paste it below (Ctrl+V), download, then use <em>Load video file</em> to play it here with your notes.</p>' +
+      '<div class="cmd"><code id="dlmUrl"></code><button class="btn btn--ghost btn--sm" id="dlmCopy">Copy</button></div>' +
+      '<iframe class="dlmodal__frame" src="https://cobalt.tools/" allow="clipboard-read; clipboard-write; downloads" referrerpolicy="no-referrer" title="Video downloader"></iframe>' +
+      '<p class="dlmodal__credit">Embedded: <a href="https://cobalt.tools/" target="_blank" rel="noopener">cobalt.tools</a>, a free open-source third-party service. Only download videos you have the right to save.</p>' +
+      '<div style="margin-top:0.6rem;"><button class="btn" id="dlmLoad">📂 I downloaded it — load the file</button></div>' +
+    '</div>';
+  document.body.appendChild(back);
+  document.getElementById('dlmUrl').textContent = R.watchUrl;
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(R.watchUrl).then(function () { toast('Link copied — paste it in the downloader'); }, function () {});
+  }
+  document.getElementById('dlmCopy').addEventListener('click', function () {
+    if (navigator.clipboard) navigator.clipboard.writeText(R.watchUrl).then(function () { toast('Link copied'); }, function () {});
+  });
+  document.getElementById('dlmLoad').addEventListener('click', function () {
+    document.getElementById('file').click();
+  });
+  var close = function () { back.remove(); };
+  document.getElementById('dlmClose').addEventListener('click', close);
+  back.addEventListener('click', function (e) { if (e.target === back) close(); });
+}
 
 document.getElementById('pick').addEventListener('click', function () { document.getElementById('file').click(); });
 document.getElementById('file').addEventListener('change', function (e) {
