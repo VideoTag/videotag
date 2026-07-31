@@ -123,6 +123,7 @@ const state = {
   videoThumbnail: null,
   editingComment: null,
   includeReactionsInExport: true,
+  packVideoFile: null,   // video the user downloaded for a platform video
 };
 
 // Transcription state
@@ -164,7 +165,7 @@ function cacheElements() {
     'addAllTranscriptBtn', 'clearTranscriptBtn',
     'exportPDFBtn', 'exportCSVBtn', 'exportJSONBtn', 'exportTXTBtn', 'exportSRTBtn',
     'searchComments', 'recentVideos', 'recentVideosList', 'includeReactionsToggle',
-    'downloadVideoBtn',
+    'downloadVideoBtn', 'subtitlesBtn',
   ];
 
   ids.forEach(id => {
@@ -1802,8 +1803,9 @@ function exportTranscriptSRT() {
   let srt = '';
   
   sorted.forEach((item, index) => {
-    const startTime = formatSRTTime(item.timestamp);
-    const endTime = formatSRTTime(item.timestamp + 3);
+    // Use the real sub-second cue bounds when we have them (imported or AI-generated)
+    const startTime = formatSRTTime(item.start ?? item.timestamp);
+    const endTime = formatSRTTime(item.end ?? item.timestamp + 3);
     srt += `${index + 1}\n${startTime} --> ${endTime}\n${item.text}\n\n`;
   });
   
@@ -1835,6 +1837,353 @@ function addAllTranscriptAsComments() {
       });
     });
     showToast(`Added ${transcriptionState.transcript.length} comments!`, 'success');
+  });
+}
+
+// ============================================
+// 15b. SUBTITLES: import, embedded tracks, on-device AI
+// ============================================
+
+const ASR = {
+  LIB: 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.5',
+  MODELS: {
+    tiny: { id: 'onnx-community/whisper-tiny', label: 'Tiny — fastest (~50 MB)' },
+    base: { id: 'onnx-community/whisper-base', label: 'Base — balanced (~90 MB)' },
+    small: { id: 'onnx-community/whisper-small', label: 'Small — most accurate (~250 MB)' },
+  },
+  pipe: null,
+  pipeKey: null,
+};
+
+// --- Subtitle file parsing (SRT / WebVTT) — exact source timings kept ---
+function parseCueTime(str) {
+  const m = str.trim().match(/(?:(\d+):)?(\d{1,2}):(\d{2})[.,](\d{1,3})/);
+  if (!m) return null;
+  return (parseInt(m[1] || 0) * 3600) + (parseInt(m[2]) * 60) + parseInt(m[3]) + (parseInt(m[4].padEnd(3, '0')) / 1000);
+}
+
+function parseSubtitleFile(content) {
+  const text = content.replace(/\r/g, '');
+  const cues = [];
+  const blocks = text.split(/\n{2,}/);
+
+  blocks.forEach(block => {
+    const lines = block.split('\n').filter(l => l.trim() && !/^WEBVTT/i.test(l));
+    const arrowIndex = lines.findIndex(l => l.includes('-->'));
+    if (arrowIndex === -1) return;
+
+    const [rawStart, rawEnd] = lines[arrowIndex].split('-->');
+    const start = parseCueTime(rawStart);
+    const end = parseCueTime(rawEnd || '');
+    const body = lines.slice(arrowIndex + 1).join(' ')
+      .replace(/<[^>]+>/g, '')          // strip styling tags
+      .replace(/\{\\[^}]+\}/g, '')
+      .trim();
+
+    if (start !== null && body) {
+      cues.push({ timestamp: Math.floor(start), start, end: end ?? start + 3, text: body });
+    }
+  });
+
+  return cues;
+}
+
+function importSubtitleFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const cues = parseSubtitleFile(String(reader.result));
+    if (!cues.length) {
+      showToast('No subtitle cues found in that file', 'error');
+      return;
+    }
+    transcriptionState.transcript = cues;
+    updateTranscriptDisplay();
+    saveTranscript();
+    showToast(`Imported ${cues.length} subtitle cues with their original timings`, 'success');
+  };
+  reader.onerror = () => showToast('Could not read that file', 'error');
+  reader.readAsText(file);
+}
+
+// --- Subtitles already inside the video file (WebM/MP4 text tracks) ---
+function extractEmbeddedTracks() {
+  const video = getNativeVideoElement();
+  const tracks = video ? Array.from(video.textTracks || []) : [];
+  if (!tracks.length) return false;
+
+  const track = tracks.find(t => t.kind === 'subtitles' || t.kind === 'captions') || tracks[0];
+  track.mode = 'hidden';
+
+  // Cues may not be parsed yet — give the browser a tick
+  const collect = () => {
+    const cues = Array.from(track.cues || []).map(c => ({
+      timestamp: Math.floor(c.startTime),
+      start: c.startTime,
+      end: c.endTime,
+      text: String(c.text).replace(/<[^>]+>/g, '').trim(),
+    })).filter(c => c.text);
+
+    if (!cues.length) return false;
+    transcriptionState.transcript = cues;
+    updateTranscriptDisplay();
+    saveTranscript();
+    showToast(`Loaded ${cues.length} cues from the video's own subtitle track`, 'success');
+    return true;
+  };
+
+  if (collect()) return true;
+  setTimeout(collect, 600);
+  return true;
+}
+
+// --- Decode the video's audio to 16 kHz mono, what Whisper expects ---
+async function extractAudioSamples(onProgress) {
+  let arrayBuffer;
+
+  if (state.packVideoFile) {
+    arrayBuffer = await state.packVideoFile.arrayBuffer();
+  } else if (state.currentProvider === 'upload' && state.uploadedVideo) {
+    arrayBuffer = await state.uploadedVideo.arrayBuffer();
+  } else if (state.currentProvider === 'direct' && state.originalVideoUrl) {
+    const response = await fetch(state.originalVideoUrl);
+    if (!response.ok) throw new Error('Could not fetch the video (the host may block cross-origin requests)');
+    arrayBuffer = await response.arrayBuffer();
+  } else {
+    throw new Error('NO_AUDIO_SOURCE');
+  }
+
+  onProgress?.('Decoding audio...');
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const decoded = await ctx.decodeAudioData(arrayBuffer);
+  ctx.close();
+
+  const offline = new OfflineAudioContext(1, Math.ceil(decoded.duration * 16000), 16000);
+  const source = offline.createBufferSource();
+  source.buffer = decoded;
+  source.connect(offline.destination);
+  source.start();
+  const resampled = await offline.startRendering();
+
+  return resampled.getChannelData(0);
+}
+
+async function generateSubtitlesFromAudio(modelKey, language, ui) {
+  const { setStage, setProgress } = ui;
+
+  setStage('Loading the speech model (first run downloads it, then it is cached)...');
+  const transformers = await import(ASR.LIB);
+  const modelId = ASR.MODELS[modelKey].id;
+
+  if (ASR.pipeKey !== modelKey) {
+    ASR.pipe = await transformers.pipeline('automatic-speech-recognition', modelId, {
+      dtype: 'q8',
+      device: navigator.gpu ? 'webgpu' : 'wasm',
+      progress_callback: (p) => {
+        if (p.status === 'progress' && p.total) {
+          setProgress(Math.round((p.loaded / p.total) * 100), `Downloading model: ${p.file || ''}`);
+        }
+      },
+    });
+    ASR.pipeKey = modelKey;
+  }
+
+  setProgress(null);
+  setStage('Extracting audio from the video...');
+  const audio = await extractAudioSamples(setStage);
+
+  const minutes = (audio.length / 16000 / 60).toFixed(1);
+  setStage(`Transcribing ${minutes} min of audio${navigator.gpu ? ' (WebGPU)' : ' (CPU)'} — this runs entirely on your machine...`);
+
+  const output = await ASR.pipe(audio, {
+    return_timestamps: true,
+    chunk_length_s: 30,
+    stride_length_s: 5,
+    language: language === 'auto' ? undefined : language,
+    task: 'transcribe',
+  });
+
+  const chunks = output.chunks || [];
+  const cues = chunks.map(c => {
+    const [start, end] = c.timestamp || [];
+    return {
+      timestamp: Math.floor(start || 0),
+      start: start || 0,
+      end: end ?? (start || 0) + 3,
+      text: (c.text || '').trim(),
+    };
+  }).filter(c => c.text);
+
+  if (!cues.length && output.text) {
+    cues.push({ timestamp: 0, start: 0, end: 5, text: output.text.trim() });
+  }
+  return cues;
+}
+
+function showSubtitleModal() {
+  $('#subtitleModal')?.remove();
+
+  const canUseAudio = isNativeVideoProvider() || !!state.packVideoFile;
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'subtitleModal';
+  modal.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="subModalTitle">
+      <div class="modal__header">
+        <div class="modal__title-wrapper">
+          <span class="modal__emoji">💬</span>
+          <h3 class="modal__title" id="subModalTitle">Subtitles</h3>
+        </div>
+        <button class="modal__close" id="subClose" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal__body">
+        <div class="sub-option">
+          <h4>📥 Import a subtitle file</h4>
+          <p>An <code>.srt</code> or <code>.vtt</code> from the platform or your editor — original timings are kept exactly.</p>
+          <button class="btn btn--secondary btn--sm" id="subImport">Choose file</button>
+        </div>
+
+        <div class="sub-option">
+          <h4>🎬 Use the video's own track</h4>
+          <p>If the loaded file already carries a subtitle track, pull its cues straight out.</p>
+          <button class="btn btn--secondary btn--sm" id="subEmbedded">Extract embedded track</button>
+        </div>
+
+        <div class="sub-option sub-option--ai">
+          <h4>🎧 Generate from the audio <span class="sub-badge">on-device AI</span></h4>
+          <p>Whisper runs <strong>inside your browser</strong> — the audio never leaves your machine — and returns
+          precisely timestamped cues.${navigator.gpu ? ' Your browser supports <strong>WebGPU</strong>, so this will be fast.' : ' Your browser will use the CPU, which is slower.'}</p>
+          ${canUseAudio ? `
+          <div class="sub-controls">
+            <label>Model
+              <select id="subModel">
+                <option value="tiny">${ASR.MODELS.tiny.label}</option>
+                <option value="base" selected>${ASR.MODELS.base.label}</option>
+                <option value="small">${ASR.MODELS.small.label}</option>
+              </select>
+            </label>
+            <label>Language
+              <select id="subLang">
+                <option value="auto">Auto-detect</option>
+                <option value="english">English</option>
+                <option value="french">French</option>
+                <option value="spanish">Spanish</option>
+                <option value="german">German</option>
+                <option value="italian">Italian</option>
+                <option value="portuguese">Portuguese</option>
+                <option value="dutch">Dutch</option>
+                <option value="japanese">Japanese</option>
+                <option value="korean">Korean</option>
+                <option value="chinese">Chinese</option>
+                <option value="arabic">Arabic</option>
+                <option value="russian">Russian</option>
+              </select>
+            </label>
+          </div>
+          <button class="btn btn--primary btn--sm" id="subGenerate">Generate subtitles</button>
+          ` : `
+          <p class="sub-note">Needs the actual video file. This is a platform video — use
+          <strong>Download</strong> first, attach the file, then come back here.</p>
+          <button class="btn btn--secondary btn--sm" id="subGetVideo">Get the video file</button>
+          `}
+          <div class="sub-progress" id="subProgress" hidden>
+            <p class="sub-stage" id="subStage"></p>
+            <div class="sub-bar"><div class="sub-bar__fill" id="subBar"></div></div>
+          </div>
+        </div>
+      </div>
+      <input type="file" id="subFileInput" accept=".srt,.vtt,.txt" hidden>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  document.body.style.overflow = 'hidden';
+
+  const close = () => {
+    modal.remove();
+    document.body.style.overflow = '';
+  };
+
+  modal.querySelector('#subClose').addEventListener('click', close);
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) close();
+  });
+
+  modal.querySelector('#subImport').addEventListener('click', () => modal.querySelector('#subFileInput').click());
+  modal.querySelector('#subFileInput').addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      importSubtitleFile(file);
+      close();
+    }
+  });
+
+  modal.querySelector('#subEmbedded').addEventListener('click', () => {
+    if (extractEmbeddedTracks()) {
+      close();
+    } else {
+      showToast('This video has no embedded subtitle track', 'info');
+    }
+  });
+
+  modal.querySelector('#subGetVideo')?.addEventListener('click', () => {
+    close();
+    showDownloaderModal(state.originalVideoUrl || getVideoWatchUrl() || '', (file) => {
+      state.packVideoFile = file;
+      showToast('Video attached — open Subtitles again to transcribe it', 'success');
+    });
+  });
+
+  modal.querySelector('#subGenerate')?.addEventListener('click', async () => {
+    const btn = modal.querySelector('#subGenerate');
+    const progress = modal.querySelector('#subProgress');
+    const stage = modal.querySelector('#subStage');
+    const bar = modal.querySelector('#subBar');
+
+    btn.disabled = true;
+    progress.hidden = false;
+
+    const ui = {
+      setStage: (t) => { stage.textContent = t; },
+      setProgress: (pct, label) => {
+        if (pct === null) {
+          bar.style.width = '100%';
+          bar.classList.add('sub-bar__fill--indeterminate');
+          return;
+        }
+        bar.classList.remove('sub-bar__fill--indeterminate');
+        bar.style.width = `${pct}%`;
+        if (label) stage.textContent = `${label} ${pct}%`;
+      },
+    };
+
+    try {
+      const cues = await generateSubtitlesFromAudio(
+        modal.querySelector('#subModel').value,
+        modal.querySelector('#subLang').value,
+        ui
+      );
+
+      if (!cues.length) {
+        showToast('No speech detected in this video', 'warning');
+        btn.disabled = false;
+        return;
+      }
+
+      transcriptionState.transcript = cues;
+      updateTranscriptDisplay();
+      saveTranscript();
+      close();
+      showToast(`Generated ${cues.length} timestamped cues — export them as SRT!`, 'success');
+    } catch (error) {
+      console.error('Subtitle generation failed:', error);
+      const message = error.message === 'NO_AUDIO_SOURCE'
+        ? 'Load a local video, a direct URL, or attach a downloaded file first'
+        : `Could not generate subtitles: ${error.message}`;
+      showToast(message, 'error');
+      btn.disabled = false;
+      progress.hidden = true;
+    }
   });
 }
 
@@ -2809,6 +3158,120 @@ async function fetchThumbnailForPack() {
   return null;
 }
 
+// The public downloader runs inside an iframe so the user never leaves
+// Vidlens: we copy the link, they paste it, the file lands in Downloads.
+const DOWNLOADER_URL = 'https://cobalt.tools/';
+
+function showDownloaderModal(videoUrl, onFile) {
+  $('#downloaderModal')?.remove();
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'downloaderModal';
+  modal.innerHTML = `
+    <div class="modal modal--wide" role="dialog" aria-modal="true" aria-labelledby="dlModalTitle">
+      <div class="modal__header">
+        <div class="modal__title-wrapper">
+          <span class="modal__emoji">⬇</span>
+          <h3 class="modal__title" id="dlModalTitle">Download the video</h3>
+        </div>
+        <button class="modal__close" id="dlClose" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal__body modal__body--flush">
+        <div class="dl-steps">
+          <span class="dl-step"><b>1</b> Link copied — paste it below (<kbd>Ctrl</kbd>+<kbd>V</kbd>)</span>
+          <span class="dl-step"><b>2</b> Pick quality &amp; download</span>
+          <span class="dl-step"><b>3</b> Attach it here 👇</span>
+        </div>
+        <div class="dl-url">
+          <input type="text" id="dlUrlField" readonly value="${sanitizeHTML(videoUrl)}">
+          <button class="btn btn--ghost btn--sm" id="dlCopy">Copy link</button>
+        </div>
+        <div class="dl-frame-wrap">
+          <iframe id="dlFrame" class="dl-frame" src="${DOWNLOADER_URL}"
+            allow="clipboard-read; clipboard-write; downloads"
+            referrerpolicy="no-referrer"
+            title="Video downloader"></iframe>
+          <div class="dl-frame-fallback" id="dlFallback" hidden>
+            <p>The embedded downloader could not load here.</p>
+            <a class="btn btn--primary btn--sm" href="${DOWNLOADER_URL}" target="_blank" rel="noopener">Open it in a new tab</a>
+          </div>
+        </div>
+        <p class="dl-credit">
+          Embedded downloader: <a href="${DOWNLOADER_URL}" target="_blank" rel="noopener">cobalt.tools</a> —
+          a free, open-source third-party service. Vidlens has no server and never sees your video.
+          Only download videos you have the right to save.
+        </p>
+      </div>
+      <div class="modal__footer">
+        <button class="btn btn--ghost" id="dlDone">Close</button>
+        <button class="btn btn--primary" id="dlAttach">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span>Attach downloaded file</span>
+        </button>
+      </div>
+      <input type="file" id="dlAttachInput" accept="video/*" hidden>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  document.body.style.overflow = 'hidden';
+
+  const close = () => {
+    modal.remove();
+    document.body.style.overflow = '';
+  };
+
+  // Pre-copy the link so pasting is the only thing left to do
+  navigator.clipboard?.writeText(videoUrl).then(
+    () => showToast('Link copied — paste it in the downloader', 'success'),
+    () => showToast('Copy the link above, then paste it in the downloader', 'info')
+  );
+
+  modal.querySelector('#dlCopy').addEventListener('click', async () => {
+    const field = modal.querySelector('#dlUrlField');
+    field.select();
+    try {
+      await navigator.clipboard.writeText(videoUrl);
+      showToast('Link copied', 'success');
+    } catch {
+      showToast('Press Ctrl+C to copy', 'info');
+    }
+  });
+
+  // If the third-party page refuses to render, fall back to a new tab
+  const frame = modal.querySelector('#dlFrame');
+  let loaded = false;
+  frame.addEventListener('load', () => { loaded = true; });
+  setTimeout(() => {
+    if (!loaded) {
+      frame.hidden = true;
+      modal.querySelector('#dlFallback').hidden = false;
+    }
+  }, 9000);
+
+  modal.querySelector('#dlAttach').addEventListener('click', () => {
+    modal.querySelector('#dlAttachInput').click();
+  });
+  modal.querySelector('#dlAttachInput').addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('video/')) {
+      showToast('Please choose a video file', 'error');
+      return;
+    }
+    close();
+    onFile?.(file);
+  });
+
+  modal.querySelector('#dlClose').addEventListener('click', close);
+  modal.querySelector('#dlDone').addEventListener('click', close);
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) close();
+  });
+}
+
 // For platform videos (whose streams a browser cannot download), offer to
 // bundle a local copy of the video the user already has into the pack.
 function askForPackVideo() {
@@ -2889,15 +3352,10 @@ function askForPackVideo() {
         showToast('Select the command and copy it manually', 'info');
       }
     });
-    modal.querySelector('#packVideoDownloader')?.addEventListener('click', async () => {
-      const url = state.originalVideoUrl || getVideoWatchUrl();
-      try {
-        if (url) await navigator.clipboard.writeText(url);
-        showToast('Video URL copied — paste it in the downloader, then come back and attach the file', 'info');
-      } catch {
-        showToast('Paste the video URL in the downloader, then come back and attach the file', 'info');
-      }
-      window.open('https://cobalt.tools/', '_blank', 'noopener');
+    modal.querySelector('#packVideoDownloader')?.addEventListener('click', () => {
+      const url = state.originalVideoUrl || getVideoWatchUrl() || '';
+      // Downloading and attaching happen in one flow, without leaving the page
+      showDownloaderModal(url, (file) => finish(file));
     });
     modal.querySelector('#packVideoInput').addEventListener('change', (e) => {
       const file = e.target.files?.[0];
@@ -2954,8 +3412,8 @@ async function exportZIP() {
       }
     } else {
       // Platform video (YouTube & co.): browsers can't fetch their streams,
-      // so offer to bundle a local copy the user already has.
-      const localCopy = await askForPackVideo();
+      // so bundle the copy grabbed via the downloader, or ask for one.
+      const localCopy = state.packVideoFile || await askForPackVideo();
       if (localCopy) {
         const ext = (localCopy.name.split('.').pop() || 'mp4').toLowerCase();
         videoFileName = `video.${DIRECT_VIDEO_EXTENSIONS.includes(ext) ? ext : 'mp4'}`;
@@ -3037,7 +3495,7 @@ async function exportZIP() {
       const sorted = [...transcriptionState.transcript].sort((a, b) => a.timestamp - b.timestamp);
       let srt = '';
       sorted.forEach((item, index) => {
-        srt += `${index + 1}\n${formatSRTTime(item.timestamp)} --> ${formatSRTTime(item.timestamp + 3)}\n${item.text}\n\n`;
+        srt += `${index + 1}\n${formatSRTTime(item.start ?? item.timestamp)} --> ${formatSRTTime(item.end ?? item.timestamp + 3)}\n${item.text}\n\n`;
       });
       folder.file('transcript.srt', srt);
     }
@@ -3725,12 +4183,10 @@ function initEventListeners() {
       return;
     }
 
-    // Platform video: a browser page cannot pull a protected stream — guide instead
-    askForPackVideo().then((file) => {
-      if (file) {
-        downloadBlob(file, file.name);
-        showToast('Saved a copy — it will also be bundled if you export a pack', 'success');
-      }
+    // Platform video: open the embedded downloader right here
+    showDownloaderModal(state.originalVideoUrl || getVideoWatchUrl() || '', (file) => {
+      state.packVideoFile = file;
+      showToast(`"${file.name}" ready — it will be bundled in your next Offline Pack`, 'success');
     });
   });
 
@@ -4067,6 +4523,13 @@ function initEventListeners() {
   elements.clearTranscriptBtn?.addEventListener('click', clearTranscript);
   elements.addAllTranscriptBtn?.addEventListener('click', addAllTranscriptAsComments);
   elements.importTranscriptBtn?.addEventListener('click', showManualTranscriptModal);
+  elements.subtitlesBtn?.addEventListener('click', () => {
+    if (!state.videoLoaded) {
+      showToast('Please load a video first', 'error');
+      return;
+    }
+    showSubtitleModal();
+  });
   
   // Handle resize
   window.addEventListener('resize', debounce(() => {
