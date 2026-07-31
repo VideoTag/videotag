@@ -2250,34 +2250,113 @@ function extractEmbeddedTracks() {
 }
 
 // --- Decode the video's audio to 16 kHz mono, what Whisper expects ---
-async function extractAudioSamples(onProgress) {
-  let arrayBuffer;
+// Rough on-disk size of each encoder in fp32. WebGPU has to hold the biggest
+// single tensor in one buffer, so this decides what actually fits.
+const ASR_ENCODER_FP32_BYTES = { tiny: 34e6, base: 80e6, small: 350e6 };
+
+// What this machine can realistically run, so we never hand the GPU a buffer
+// it cannot allocate (that is what takes browsers — and sometimes the whole
+// machine — down).
+async function probeAsrCapabilities(modelKey) {
+  const need = ASR_ENCODER_FP32_BYTES[modelKey] || 80e6;
+  const caps = {
+    device: 'wasm',
+    dtype: 'q8',
+    label: 'CPU',
+    deviceMemoryGB: navigator.deviceMemory || null,
+    reason: 'WebGPU unavailable',
+  };
+
+  if (!navigator.gpu) return caps;
+
+  try {
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) return caps;
+
+    const maxBuffer = adapter.limits?.maxBufferSize || 0;
+    const maxBinding = adapter.limits?.maxStorageBufferBindingSize || 0;
+    const headroom = Math.min(maxBuffer, maxBinding);
+
+    if (headroom >= need * 1.25) {
+      // Comfortable: full-precision encoder, quantised decoder — best quality
+      return { ...caps, device: 'webgpu', dtype: { encoder_model: 'fp32', decoder_model_merged: 'q4' }, label: 'GPU', reason: 'fits comfortably' };
+    }
+    if (headroom >= need * 0.45) {
+      // Tight: quantised encoder still runs well on GPU
+      return { ...caps, device: 'webgpu', dtype: 'q4', label: 'GPU (compact)', reason: 'limited GPU buffers' };
+    }
+    return { ...caps, reason: 'GPU buffers too small for this model' };
+  } catch (error) {
+    return { ...caps, reason: `GPU probe failed: ${error.message}` };
+  }
+}
+
+// Decode straight to 16 kHz mono — what Whisper wants — instead of decoding at
+// the file's native rate first. A 1-hour 48 kHz stereo track is ~1.4 GB when
+// decoded natively; at 16 kHz mono it is ~230 MB, and we free the container
+// bytes as soon as the decoder is done with them.
+async function extractAudioSamples(onProgress, range = null) {
+  let source = null;
 
   if (state.packVideoFile) {
-    arrayBuffer = await state.packVideoFile.arrayBuffer();
+    source = state.packVideoFile;
   } else if (state.currentProvider === 'upload' && state.uploadedVideo) {
-    arrayBuffer = await state.uploadedVideo.arrayBuffer();
+    source = state.uploadedVideo;
   } else if (state.currentProvider === 'direct' && state.originalVideoUrl) {
+    onProgress?.('Fetching the video…');
     const response = await fetch(state.originalVideoUrl);
     if (!response.ok) throw new Error('Could not fetch the video (the host may block cross-origin requests)');
-    arrayBuffer = await response.arrayBuffer();
+    source = await response.blob();
   } else {
     throw new Error('NO_AUDIO_SOURCE');
   }
 
-  onProgress?.('Decoding audio...');
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  const decoded = await ctx.decodeAudioData(arrayBuffer);
-  ctx.close();
+  if (source.size > 1.2e9) {
+    throw new Error('This file is too large to decode in a browser (over ~1.2 GB). Export a shorter clip first.');
+  }
 
-  const offline = new OfflineAudioContext(1, Math.ceil(decoded.duration * 16000), 16000);
-  const source = offline.createBufferSource();
-  source.buffer = decoded;
-  source.connect(offline.destination);
-  source.start();
-  const resampled = await offline.startRendering();
+  onProgress?.('Reading the audio track…');
+  let arrayBuffer = await source.arrayBuffer();
+  source = null;
 
-  return resampled.getChannelData(0);
+  // Decoding inside a 16 kHz context makes the browser resample as it decodes
+  const decodeCtx = new OfflineAudioContext(1, 1, 16000);
+  let decoded;
+  try {
+    decoded = await decodeCtx.decodeAudioData(arrayBuffer);
+  } finally {
+    arrayBuffer = null;   // release the container bytes immediately
+  }
+
+  const sampleRate = decoded.sampleRate;
+  const from = range ? Math.max(0, Math.floor(range.start * sampleRate)) : 0;
+  const to = range ? Math.min(decoded.length, Math.ceil(range.end * sampleRate)) : decoded.length;
+  const length = Math.max(0, to - from);
+  if (!length) throw new Error('That time range contains no audio');
+
+  onProgress?.('Preparing the audio…');
+
+  // Downmix to mono in place rather than allocating another full graph
+  const mono = new Float32Array(length);
+  const channels = Math.min(decoded.numberOfChannels, 2);
+  for (let ch = 0; ch < channels; ch++) {
+    const data = decoded.getChannelData(ch);
+    for (let i = 0; i < length; i++) mono[i] += data[from + i] / channels;
+  }
+  decoded = null;
+
+  if (sampleRate === 16000) return mono;
+
+  // Fallback: the browser ignored our context rate, so resample explicitly
+  const ratio = 16000 / sampleRate;
+  const out = new Float32Array(Math.floor(length * ratio));
+  for (let i = 0; i < out.length; i++) {
+    const pos = i / ratio;
+    const idx = Math.floor(pos);
+    const frac = pos - idx;
+    out[i] = mono[idx] * (1 - frac) + (mono[idx + 1] || mono[idx]) * frac;
+  }
+  return out;
 }
 
 // Whisper's native window is 30 s, so we feed it exactly that and stitch the
@@ -2355,28 +2434,45 @@ function defaultAsrLanguage() {
   return map[(navigator.language || 'en').slice(0, 2).toLowerCase()] || 'english';
 }
 
-async function generateSubtitlesFromAudio(modelKey, language, ui) {
+// Free the ONNX session (and its GPU buffers) — transformers keeps them alive
+// until explicitly disposed, which is how VRAM creeps up between runs.
+async function releaseAsrPipeline() {
+  try {
+    await ASR.pipe?.dispose?.();
+  } catch (error) {
+    console.warn('Could not dispose the ASR pipeline:', error?.message);
+  }
+  ASR.pipe = null;
+  ASR.pipeKey = null;
+  ASR.announced = false;
+}
+
+async function generateSubtitlesFromAudio(modelKey, language, ui, range = null) {
   const { setStage, setProgress, onCues, shouldStop } = ui;
 
   setStage('Loading the speech model…');
   const transformers = await import(ASR.LIB);
 
   if (ASR.pipeKey !== modelKey) {
-    // Precision matters: q8 on WebGPU wrecks Whisper's encoder and produces
-    // looping multilingual nonsense, so the encoder stays fp16/fp32. Some
-    // GPUs cannot allocate those buffers, hence the fallback chain.
-    // One configuration per backend: trying several would download a second
-    // set of weights every time the first one is unavailable.
-    const attempts = navigator.gpu
-      ? [
-          { device: 'webgpu', dtype: { encoder_model: 'fp32', decoder_model_merged: 'q4' }, label: 'GPU' },
-          { device: 'wasm', dtype: 'q8', label: 'CPU' },
-        ]
-      : [{ device: 'wasm', dtype: 'q8', label: 'CPU' }];
+    // Ask the GPU what it can actually allocate before handing it a model.
+    // Guessing here is what freezes machines: an encoder that does not fit
+    // makes the driver thrash or fall over.
+    const caps = await probeAsrCapabilities(modelKey);
+    console.info('ASR backend:', caps.label, '-', caps.reason);
+
+    const attempts = [caps];
+    if (caps.device === 'webgpu') {
+      attempts.push({ device: 'webgpu', dtype: 'q4', label: 'GPU (compact)' });
+      attempts.push({ device: 'wasm', dtype: 'q8', label: 'CPU' });
+    }
+
+    // A half-initialised session keeps its GPU buffers; always let it go
+    await releaseAsrPipeline();
 
     let lastError;
     for (const attempt of attempts) {
       try {
+        setStage(`Preparing the model on your ${attempt.label}…`);
         ASR.pipe = await transformers.pipeline('automatic-speech-recognition', ASR.MODELS[modelKey].id, {
           dtype: attempt.dtype,
           device: attempt.device,
@@ -2396,8 +2492,9 @@ async function generateSubtitlesFromAudio(modelKey, language, ui) {
         break;
       } catch (error) {
         lastError = error;
-        console.warn(`ASR init failed on ${attempt.device}/${attempt.dtype.encoder_model}:`, error.message);
-        setStage(`${attempt.device === 'webgpu' ? 'GPU' : 'CPU'} setup failed — trying another configuration…`);
+        console.warn(`ASR init failed on ${attempt.label}:`, error?.message || error);
+        await releaseAsrPipeline();
+        setStage(`${attempt.label} could not host the model — trying a lighter setup…`);
       }
     }
     if (lastError) throw lastError;
@@ -2406,13 +2503,15 @@ async function generateSubtitlesFromAudio(modelKey, language, ui) {
 
   setStage('Extracting the audio…');
   setProgress(0, null);
-  const audio = await extractAudioSamples(setStage);
+  const audio = await extractAudioSamples(setStage, range);
 
   const sampleRate = 16000;
+  const baseOffset = range ? range.start : 0;
   const totalSeconds = audio.length / sampleRate;
   const chunkCount = Math.max(1, Math.ceil(totalSeconds / ASR_CHUNK_SECONDS));
   const cues = [];
   const startedAt = Date.now();
+  let downgraded = false;
 
   setStage(`Transcribing ${formatTime(totalSeconds)} of audio on your ${ASR.device || 'CPU'}…`);
 
@@ -2422,7 +2521,7 @@ async function generateSubtitlesFromAudio(modelKey, language, ui) {
     const offset = i * ASR_CHUNK_SECONDS;
     // slice(), not subarray(): a view shares the whole buffer and the GPU
     // backend then tries to upload the entire track for every chunk
-    const slice = audio.slice(offset * sampleRate, Math.min((offset + ASR_CHUNK_SECONDS) * sampleRate, audio.length));
+    let slice = audio.slice(offset * sampleRate, Math.min((offset + ASR_CHUNK_SECONDS) * sampleRate, audio.length));
     if (slice.length < sampleRate * 0.2) continue;   // skip a sliver of trailing silence
 
     let output;
@@ -2439,11 +2538,38 @@ async function generateSubtitlesFromAudio(modelKey, language, ui) {
         max_new_tokens: 448,
       });
     } catch (error) {
-      // One bad chunk (memory spike, odd audio) must not lose the whole run
-      console.warn(`Chunk ${i + 1} failed:`, error?.message || error);
+      const message = String(error?.message || error);
+      console.warn(`Chunk ${i + 1} failed:`, message);
+
+      // Out of memory: drop the session, reload it smaller, retry this chunk
+      if (/memory|allocat|buffer|size|device lost/i.test(message) && !downgraded) {
+        downgraded = true;
+        setStage('Ran low on memory — reloading the model in a lighter mode…');
+        await releaseAsrPipeline();
+        try {
+          ASR.pipe = await transformers.pipeline('automatic-speech-recognition', ASR.MODELS[modelKey].id, {
+            dtype: 'q8',
+            device: 'wasm',
+          });
+          ASR.pipeKey = modelKey;
+          ASR.device = 'CPU (safe mode)';
+          i--;                       // retry the same chunk on the safe backend
+          continue;
+        } catch (fallbackError) {
+          console.warn('Safe-mode reload failed:', fallbackError?.message);
+          throw error;
+        }
+      }
+
       setStage(`Chunk ${i + 1} could not be transcribed — continuing…`);
       continue;
+    } finally {
+      // Hand the slice back before the next allocation
+      slice = null;
     }
+
+    // Let the browser breathe: repaint the live text and give GC a window
+    await new Promise(resolve => setTimeout(resolve, 0));
 
     const parts = output.chunks?.length
       ? output.chunks
@@ -2451,11 +2577,11 @@ async function generateSubtitlesFromAudio(modelKey, language, ui) {
 
     const fresh = parts.map(part => {
       const [start, end] = part.timestamp || [];
-      const absoluteStart = offset + (start || 0);
+      const absoluteStart = baseOffset + offset + (start || 0);
       return {
         timestamp: Math.floor(absoluteStart),
         start: absoluteStart,
-        end: offset + (end ?? (start || 0) + 2),
+        end: baseOffset + offset + (end ?? (start || 0) + 2),
         text: (part.text || '').trim(),
       };
     }).filter(c => c.text);
@@ -2616,7 +2742,14 @@ function showSubtitleModal() {
         </label>
       </div>
       <p class="sub-tip">For anything other than English, <strong>Small</strong> is markedly more accurate than Tiny.</p>
+      <div class="sub-range">
+        <label>From <input type="text" id="subFrom" value="0:00" size="6" inputmode="numeric"></label>
+        <label>To <input type="text" id="subTo" value="${formatTime(state.videoDuration || 0)}" size="6" inputmode="numeric"></label>
+        <button type="button" class="btn btn--ghost btn--sm" id="subWhole">Whole video</button>
+      </div>
+      <p class="sub-estimate" id="subEstimate"></p>
       <button class="btn btn--primary" id="subGenerate">✨ Generate subtitles</button>
+      <button class="btn btn--ghost btn--sm" id="subFreeMem" title="Unload the speech model from memory">Free model memory</button>
       ` : `
       <p class="sub-note">Needs the actual video file. This is a platform video — use
       <strong>Download</strong> first, attach the file, then come back here.</p>
@@ -2693,6 +2826,52 @@ function showSubtitleModal() {
   const langSelect = modal.querySelector('#subLang');
   if (langSelect) langSelect.value = defaultAsrLanguage();
 
+  // Live estimate of what the chosen range will cost in memory and time
+  const fromField = modal.querySelector('#subFrom');
+  const toField = modal.querySelector('#subTo');
+  const estimateEl = modal.querySelector('#subEstimate');
+
+  const readRange = () => {
+    const start = Math.max(0, parseTimeToSeconds(fromField?.value || '0'));
+    const rawEnd = parseTimeToSeconds(toField?.value || '0') || state.videoDuration || 0;
+    const end = Math.max(start + 1, rawEnd);
+    return { start, end };
+  };
+
+  const refreshEstimate = async () => {
+    if (!estimateEl) return;
+    const { start, end } = readRange();
+    const seconds = Math.max(0, end - start);
+    const audioMB = (seconds * 16000 * 4) / 1e6;
+    const modelKey = modal.querySelector('#subModel')?.value || 'base';
+    const caps = await probeAsrCapabilities(modelKey);
+    // Rough throughput: GPU chews ~8x realtime, CPU ~1x for these model sizes
+    const speed = caps.device === 'webgpu' ? 8 : 1;
+    const minutes = Math.max(1, Math.round(seconds / speed / 60));
+
+    estimateEl.innerHTML =
+      `Selected: <strong>${formatTime(seconds)}</strong> · audio in memory ≈ <strong>${audioMB.toFixed(0)} MB</strong> · ` +
+      `runs on <strong>${caps.label}</strong> · roughly <strong>${minutes} min</strong>` +
+      (seconds > 1800
+        ? '<br><span class="sub-warn">⚠ Over 30 minutes at once is heavy. Transcribe in chunks (set From/To) to keep your machine responsive.</span>'
+        : '');
+  };
+
+  fromField?.addEventListener('input', refreshEstimate);
+  toField?.addEventListener('input', refreshEstimate);
+  modal.querySelector('#subModel')?.addEventListener('change', refreshEstimate);
+  modal.querySelector('#subWhole')?.addEventListener('click', () => {
+    if (fromField) fromField.value = '0:00';
+    if (toField) toField.value = formatTime(state.videoDuration || 0);
+    refreshEstimate();
+  });
+  refreshEstimate();
+
+  modal.querySelector('#subFreeMem')?.addEventListener('click', async () => {
+    await releaseAsrPipeline();
+    showToast('Speech model unloaded — memory released', 'success');
+  });
+
   modal.querySelector('#subGetVideo')?.addEventListener('click', () => {
     close();
     showDownloaderModal(state.originalVideoUrl || getVideoWatchUrl() || '', (file) => {
@@ -2704,6 +2883,9 @@ function showSubtitleModal() {
   modal.querySelector('#subGenerate')?.addEventListener('click', async () => {
     const modelKey = modal.querySelector('#subModel').value;
     const language = modal.querySelector('#subLang').value;
+    const picked = readRange();
+    const whole = picked.start <= 0 && picked.end >= (state.videoDuration || 0) - 1;
+    const range = whole ? null : picked;
     close();
 
     let stopped = false;
@@ -2715,7 +2897,7 @@ function showSubtitleModal() {
         setProgress: ui.setProgress,
         onCues: (fresh) => ui.addCues(fresh),
         shouldStop: () => stopped,
-      });
+      }, range);
 
       ui.close();
 
